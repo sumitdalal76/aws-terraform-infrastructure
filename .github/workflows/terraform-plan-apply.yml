@@ -4,9 +4,11 @@ on:
   push:
     branches:
       - main
+      - aws-terraform-infrastructure
   pull_request:
     branches:
       - main
+      - aws-terraform-infrastructure
 
 permissions:
   contents: read
