@@ -27,7 +27,9 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Debug: List Root Directory
-        run: ls -R
+        run: |
+          echo "Current working directory: $GITHUB_WORKSPACE"
+          ls -R
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v2
