@@ -1,44 +1,39 @@
-# This is a basic workflow to help you get started with Actions
 name: 'Terraform Workflow'
 
-# Controls when the workflow will run
 on:
-  # Triggers the workflow on push or pull request events
-  push:
-    branches: [ "main", "aws-terraform-infra" ]
-  pull_request:
-    branches: [ "main", "aws-terraform-infra" ]
-
-  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
     inputs:
       action:
-        description: 'Terraform Action (apply/destroy)'
+        description: 'Terraform Action (apply/destroy/import)'
         required: true
         default: 'apply'
         type: choice
         options:
           - apply
           - destroy
+          - import
+      resource_address:
+        description: 'Resource Address (for import)'
+        required: false
+        type: string
+      resource_id:
+        description: 'Resource ID (for import)'
+        required: false
+        type: string
 
-# Add these permissions - they're required for OIDC
 permissions:
   id-token: write
   contents: read
 
-# A workflow run is made up of one or more jobs
 jobs:
   terraform:
-    # The type of runner that the job will run on
     runs-on: ubuntu-latest
     
     defaults:
       run:
         working-directory: terraform/environments/prod
 
-    # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v4
 
       - name: Configure AWS Credentials
@@ -54,6 +49,16 @@ jobs:
 
       - name: Terraform Init
         run: terraform init
+
+      - name: Terraform Import
+        if: inputs.action == 'import'
+        run: |
+          if [ -n "${{ inputs.resource_address }}" ] && [ -n "${{ inputs.resource_id }}" ]; then
+            terraform import ${{ inputs.resource_address }} ${{ inputs.resource_id }}
+          else
+            echo "Resource address and ID are required for import"
+            exit 1
+          fi
 
       - name: Terraform Plan
         if: inputs.action == 'apply'
