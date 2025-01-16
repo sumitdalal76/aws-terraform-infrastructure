@@ -48,22 +48,23 @@ jobs:
       - name: Terraform Plan
         run: |
           if [ "${{ inputs.action }}" == "destroy" ]; then
-            terraform plan -destroy -out=$GITHUB_WORKSPACE/terraform/environments/prod/tfplan
+            terraform plan -destroy -out=$GITHUB_WORKSPACE/tfplan
           else
-            terraform plan -out=$GITHUB_WORKSPACE/terraform/environments/prod/tfplan
+            terraform plan -out=$GITHUB_WORKSPACE/tfplan
           fi
         env:
           GITHUB_WORKSPACE: ${{ github.workspace }}
 
       - name: Debug List Files
         run: |
-          ls -l $GITHUB_WORKSPACE/terraform/environments/prod/
+          ls -l ${{ github.workspace }}/tfplan
 
       - name: Upload Plan
         uses: actions/upload-artifact@v3
         with:
           name: terraform-plan
-          path: $GITHUB_WORKSPACE/terraform/environments/prod/tfplan
+          path: ${{ github.workspace }}/tfplan
+          if-no-files-found: error
 
   terraform-apply:
     runs-on: ubuntu-latest
@@ -92,7 +93,7 @@ jobs:
         run: terraform init
 
       - name: Terraform Apply
-        run: terraform apply -auto-approve $GITHUB_WORKSPACE/terraform/environments/prod/tfplan
+        run: terraform apply -auto-approve ${{ github.workspace }}/tfplan
 
   terraform-destroy:
     runs-on: ubuntu-latest
@@ -121,4 +122,4 @@ jobs:
         run: terraform init
 
       - name: Terraform Destroy
-        run: terraform destroy -auto-approve $GITHUB_WORKSPACE/terraform/environments/prod/tfplan
+        run: terraform destroy -auto-approve ${{ github.workspace }}/tfplan
