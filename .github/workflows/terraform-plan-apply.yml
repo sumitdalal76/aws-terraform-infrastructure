@@ -1,13 +1,17 @@
+# This is a workflow for Terraform operations
 name: 'Terraform Plan/Apply'
 
+# Controls when the workflow will run
 on:
+  # Triggers the workflow on push events
   push:
-    branches:
-      - main
-      - aws-terraform-infrastructure
-  workflow_dispatch:  
+    branches: 
+      - "main"
+      - "aws-terraform-infrastructure"
+  
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
     inputs:
-
       environment:
         description: 'Select environment'
         required: true
@@ -17,6 +21,7 @@ on:
           - staging
           - prod
 
+# A workflow run is made up of one or more jobs
 jobs:
   terraform:
     name: 'Terraform'
@@ -28,7 +33,7 @@ jobs:
 
     steps:
     - name: Checkout
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@v2
@@ -49,4 +54,4 @@ jobs:
       run: terraform plan
 
     - name: Terraform Apply
-      run: terraform apply -auto-approve 
+      run: terraform apply -auto-approve
