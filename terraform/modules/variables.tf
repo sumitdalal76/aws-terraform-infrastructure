@@ -21,13 +21,3 @@ variable "availability_zones" {
   type        = list(string)
   default     = ["ca-central-1a", "ca-central-1b"]
 }
-
-variable "domain_name" {
-  description = "Domain name for Route53"
-  type        = string
-}
-
-variable "certificate_arn" {
-  description = "ARN of SSL certificate"
-  type        = string
-} 
