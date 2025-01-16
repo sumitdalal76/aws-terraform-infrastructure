@@ -17,8 +17,3 @@ output "alb_dns_name" {
   description = "The DNS name of the load balancer"
   value       = aws_lb.main.dns_name
 }
-
-output "route53_nameservers" {
-  description = "Nameservers for the Route53 zone"
-  value       = aws_route53_zone.main.name_servers
-} 
