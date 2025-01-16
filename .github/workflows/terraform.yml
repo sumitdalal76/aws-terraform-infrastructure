@@ -10,6 +10,7 @@ on:
         options:
           - apply
           - destroy
+          - inventory
 
 permissions:
   id-token: write
@@ -38,14 +39,17 @@ jobs:
           aws-region: ca-central-1
 
       - name: Setup Terraform
+        if: inputs.action == 'apply' || inputs.action == 'destroy'
         uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: "1.5.0"
 
       - name: Terraform Init
+        if: inputs.action == 'apply' || inputs.action == 'destroy'
         run: terraform init
 
       - name: Terraform Plan
+        if: inputs.action == 'apply' || inputs.action == 'destroy'
         run: |
           if [ "${{ inputs.action }}" == "destroy" ]; then
             echo "Running Terraform Plan for Destroy..."
@@ -56,6 +60,7 @@ jobs:
           fi
 
       - name: Terraform Apply or Destroy
+        if: inputs.action == 'apply' || inputs.action == 'destroy'
         run: |
           if [ "${{ inputs.action }}" == "destroy" ]; then
             echo "Executing Terraform Destroy..."
@@ -64,3 +69,28 @@ jobs:
             echo "Executing Terraform Apply..."
             terraform apply -auto-approve tfplan
           fi
+
+      - name: Setup Python
+        if: inputs.action == 'inventory'
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install Dependencies
+        if: inputs.action == 'inventory'
+        run: |
+          python -m pip install --upgrade pip
+          pip install boto3 botocore
+
+      - name: Run Resource Inventory
+        if: inputs.action == 'inventory'
+        run: |
+          python scripts/resources.py
+
+      - name: Upload Inventory Report
+        if: inputs.action == 'inventory'
+        uses: actions/upload-artifact@v3
+        with:
+          name: aws-resource-inventory
+          path: aws_resources_*.json
+          retention-days: 30
