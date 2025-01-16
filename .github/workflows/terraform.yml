@@ -26,7 +26,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Debug: List Root Directory
+      - name: Debug List Root Directory
         run: |
           echo "Current working directory: $GITHUB_WORKSPACE"
           ls -R
