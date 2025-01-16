@@ -2,9 +2,9 @@ terraform {
   required_version = ">= 1.0.0"
 
   backend "s3" {
-    bucket         = "your-terraform-state-bucket"
+    bucket         = "772102554033-stage-terraform-state"
     key            = "staging/terraform.tfstate"
-    region         = "us-west-2"
+    region         = "ca-central-1"
     dynamodb_table = "terraform-state-locks"
     encrypt        = true
   }
