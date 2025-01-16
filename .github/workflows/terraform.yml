@@ -57,3 +57,4 @@ jobs:
             terraform plan -out=tfplan
             echo "Executing Terraform Apply..."
             terraform apply -auto-approve tfplan
+          fi
