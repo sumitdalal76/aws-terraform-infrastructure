@@ -8,7 +8,6 @@ on:
         required: true
         type: choice
         options:
-          - plan
           - apply
           - destroy
 
@@ -42,7 +41,18 @@ jobs:
         run: terraform init
 
       - name: Terraform Plan
-        run: terraform plan
+        run: |
+          if [ "${{ inputs.action }}" == "destroy" ]; then
+            terraform plan -destroy -out=tfplan
+          else
+            terraform plan -out=tfplan
+          fi
+
+      - name: Upload Plan
+        uses: actions/upload-artifact@v3
+        with:
+          name: terraform-plan
+          path: tfplan
 
   terraform-apply:
     runs-on: ubuntu-latest
@@ -64,11 +74,16 @@ jobs:
         with:
           terraform_version: "1.5.0"
 
+      - name: Download Plan
+        uses: actions/download-artifact@v3
+        with:
+          name: terraform-plan
+
       - name: Terraform Init
         run: terraform init
 
       - name: Terraform Apply
-        run: terraform apply -auto-approve
+        run: terraform apply -auto-approve tfplan
 
   terraform-destroy:
     runs-on: ubuntu-latest
@@ -90,8 +105,13 @@ jobs:
         with:
           terraform_version: "1.5.0"
 
+      - name: Download Plan
+        uses: actions/download-artifact@v3
+        with:
+          name: terraform-plan
+
       - name: Terraform Init
         run: terraform init
 
       - name: Terraform Destroy
-        run: terraform destroy -auto-approve
+        run: terraform destroy -auto-approve tfplan
