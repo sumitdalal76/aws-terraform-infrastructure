@@ -20,7 +20,8 @@ permissions:
   contents: read
 
 jobs:
-  terraform:
+  terraform-apply:
+    if: inputs.action == 'apply'
     runs-on: ubuntu-latest
     
     defaults:
@@ -45,17 +46,38 @@ jobs:
         run: terraform init
 
       - name: Terraform Plan
-        run: |
-          if [ "${{ inputs.action }}" == "destroy" ]; then
-            terraform plan -destroy
-          else
-            terraform plan
-          fi
+        run: terraform plan
 
       - name: Terraform Apply
-        if: inputs.action == 'apply' && github.event_name == 'workflow_dispatch'
         run: terraform apply -auto-approve
 
+  terraform-destroy:
+    if: inputs.action == 'destroy'
+    runs-on: ubuntu-latest
+    
+    defaults:
+      run:
+        working-directory: terraform/environments/prod
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::772102554033:role/github-terraform-role
+          aws-region: ca-central-1
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: "1.5.0"
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Plan
+        run: terraform plan -destroy
+
       - name: Terraform Destroy
-        if: inputs.action == 'destroy' && github.event_name == 'workflow_dispatch'
         run: terraform destroy -auto-approve
