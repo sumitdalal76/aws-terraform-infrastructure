@@ -48,14 +48,12 @@ jobs:
       - name: Terraform Plan
         run: |
           if [ "${{ inputs.action }}" == "destroy" ]; then
-            terraform plan -destroy -out=$GITHUB_WORKSPACE/tfplan
+            terraform plan -destroy -out=tfplan
           else
-            terraform plan -out=$GITHUB_WORKSPACE/tfplan
+            terraform plan -out=tfplan
           fi
-        env:
-          GITHUB_WORKSPACE: ${{ github.workspace }}
 
-      - name: Debug List Files
+      - name: Debug: Confirm tfplan Exists
         run: |
           ls -l ${{ github.workspace }}/tfplan
 
@@ -63,15 +61,37 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: terraform-plan
-          path: ${{ github.workspace }}/tfplan
-          if-no-files-found: error
+          path: tfplan
+
+      - name: Upload Terraform State
+        uses: actions/upload-artifact@v3
+        with:
+          name: terraform-state
+          path: |
+            .terraform/
+            .terraform.lock.hcl
 
   terraform-apply:
     runs-on: ubuntu-latest
     needs: terraform-plan
     if: inputs.action == 'apply'
+
+    defaults:
+      run:
+        working-directory: terraform/environments/prod
+
     steps:
       - uses: actions/checkout@v4
+
+      - name: Download Terraform State
+        uses: actions/download-artifact@v3
+        with:
+          name: terraform-state
+
+      - name: Download Plan
+        uses: actions/download-artifact@v3
+        with:
+          name: terraform-plan
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v2
@@ -84,24 +104,30 @@ jobs:
         with:
           terraform_version: "1.5.0"
 
-      - name: Download Plan
-        uses: actions/download-artifact@v3
-        with:
-          name: terraform-plan
-
-      - name: Terraform Init
-        run: terraform init
-
       - name: Terraform Apply
         run: terraform apply -auto-approve tfplan
-        working-directory: ${{ github.workspace }}
 
   terraform-destroy:
     runs-on: ubuntu-latest
     needs: terraform-plan
     if: inputs.action == 'destroy'
+
+    defaults:
+      run:
+        working-directory: terraform/environments/prod
+
     steps:
       - uses: actions/checkout@v4
+
+      - name: Download Terraform State
+        uses: actions/download-artifact@v3
+        with:
+          name: terraform-state
+
+      - name: Download Plan
+        uses: actions/download-artifact@v3
+        with:
+          name: terraform-plan
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v2
@@ -114,14 +140,5 @@ jobs:
         with:
           terraform_version: "1.5.0"
 
-      - name: Download Plan
-        uses: actions/download-artifact@v3
-        with:
-          name: terraform-plan
-
-      - name: Terraform Init
-        run: terraform init
-
       - name: Terraform Destroy
         run: terraform destroy -auto-approve tfplan
-        working-directory: ${{ github.workspace }}
