@@ -91,7 +91,6 @@ jobs:
 
       - name: Upload Inventory Report
         if: inputs.action == 'inventory'
-        working-directory: .
         uses: actions/upload-artifact@v3
         with:
           name: aws-resource-inventory
