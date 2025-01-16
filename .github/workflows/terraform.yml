@@ -78,21 +78,24 @@ jobs:
 
       - name: Install Dependencies
         if: inputs.action == 'inventory'
-        working-directory: .
+        working-directory: ${{ github.workspace }}
         run: |
           python -m pip install --upgrade pip
           pip install boto3 botocore
 
       - name: Run Resource Inventory
         if: inputs.action == 'inventory'
-        working-directory: .
+        working-directory: ${{ github.workspace }}
         run: |
+          ls -la scripts/  # Debug: List contents of scripts directory
           python scripts/resources.py
+          ls -la  # Debug: List files to see where the output is saved
 
       - name: Upload Inventory Report
         if: inputs.action == 'inventory'
         uses: actions/upload-artifact@v3
         with:
           name: aws-resource-inventory
-          path: aws_resources_*.json
+          path: ${{ github.workspace }}/aws_resources_*.json
           retention-days: 30
+          if-no-files-found: error  # Changed to error to help debug
