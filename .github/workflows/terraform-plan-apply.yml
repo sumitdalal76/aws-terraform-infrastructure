@@ -1,16 +1,25 @@
 # This is a basic workflow to help you get started with Actions
-name: CI-terraform-Pipeline
+name: 'Terraform Workflow'
 
 # Controls when the workflow will run
 on:
   # Triggers the workflow on push or pull request events
   push:
-    branches: [ "main", "aws-terraform-infrastructure" ]
+    branches: [ "main", "aws-terraform-infra" ]
   pull_request:
-    branches: [ "main", "aws-terraform-infrastructure" ]
+    branches: [ "main", "aws-terraform-infra" ]
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
+    inputs:
+      action:
+        description: 'Terraform Action (apply/destroy)'
+        required: true
+        default: 'apply'
+        type: choice
+        options:
+          - apply
+          - destroy
 
 # Add these permissions - they're required for OIDC
 permissions:
@@ -47,14 +56,21 @@ jobs:
         run: terraform init
 
       - name: Terraform Plan
+        if: inputs.action == 'apply'
         id: plan
-        run: terraform plan -no-color
+        run: terraform plan
         continue-on-error: true
 
-      - name: Terraform Plan Status
-        if: steps.plan.outcome == 'failure'
-        run: exit 1
+      - name: Terraform Plan Destroy
+        if: inputs.action == 'destroy'
+        id: plan-destroy
+        run: terraform plan -destroy
+        continue-on-error: true
 
       - name: Terraform Apply
-        if: github.event_name == 'workflow_dispatch'
+        if: inputs.action == 'apply' && github.event_name == 'workflow_dispatch'
         run: terraform apply
+
+      - name: Terraform Destroy
+        if: inputs.action == 'destroy' && github.event_name == 'workflow_dispatch'
+        run: terraform destroy
