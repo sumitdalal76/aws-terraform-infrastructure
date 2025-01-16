@@ -5,8 +5,6 @@ resource "aws_lb" "main" {
   security_groups    = [aws_security_group.alb.id]
   subnets            = aws_subnet.public[*].id
 
-  enable_deletion_protection = true
-
   tags = {
     Name        = "${var.environment}-alb"
     Environment = var.environment
