@@ -45,17 +45,17 @@ jobs:
         run: terraform init
 
       - name: Terraform Plan
-        if: github.event_name == 'push' || github.event_name == 'pull_request' || github.event.inputs.action == 'apply'
-        run: terraform plan
+        run: |
+          if [ "${{ inputs.action }}" == "destroy" ]; then
+            terraform plan -destroy
+          else
+            terraform plan
+          fi
 
       - name: Terraform Apply
-        if: github.event.inputs.action == 'apply'
-        run: terraform apply
-
-      - name: Terraform Plan Destroy
-        if: github.event.inputs.action == 'destroy'
-        run: terraform plan -destroy
+        if: inputs.action == 'apply' && github.event_name == 'workflow_dispatch'
+        run: terraform apply -auto-approve
 
       - name: Terraform Destroy
-        if: github.event.inputs.action == 'destroy'
-        run: terraform destroy
+        if: inputs.action == 'destroy' && github.event_name == 'workflow_dispatch'
+        run: terraform destroy -auto-approve
