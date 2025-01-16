@@ -87,15 +87,22 @@ jobs:
         if: inputs.action == 'inventory'
         working-directory: ${{ github.workspace }}
         run: |
-          ls -la scripts/  # Debug: List contents of scripts directory
+          echo "Running Python script..."
           python scripts/resources.py
-          ls -la  # Debug: List files to see where the output is saved
+          
+          echo "=== AWS Resources Inventory ==="
+          for f in aws_resources_*.json; do
+            echo "Contents of $f:"
+            cat "$f" | jq '.'
+          done
 
       - name: Upload Inventory Report
         if: inputs.action == 'inventory'
         uses: actions/upload-artifact@v3
         with:
           name: aws-resource-inventory
-          path: ${{ github.workspace }}/aws_resources_*.json
+          path: |
+            ${{ github.workspace }}/**/*aws_resources_*.json
+            ./aws_resources_*.json
+            aws_resources_*.json
           retention-days: 30
-          if-no-files-found: error  # Changed to error to help debug
