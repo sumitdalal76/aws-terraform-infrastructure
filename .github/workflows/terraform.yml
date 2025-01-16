@@ -53,7 +53,7 @@ jobs:
             terraform plan -out=tfplan
           fi
 
-      - name: Debug: Confirm tfplan Exists
+      - name: Debug Confirm tfplan Exists
         run: |
           ls -l ${{ github.workspace }}/tfplan
 
