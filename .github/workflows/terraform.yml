@@ -43,23 +43,24 @@ jobs:
       - name: Terraform Plan
         run: |
           if [ "${{ inputs.action }}" == "destroy" ]; then
-            terraform plan -destroy -out=tfplan
+            terraform plan -destroy -out=terraform/environments/prod/tfplan
           else
-            terraform plan -out=tfplan
+            terraform plan -out=terraform/environments/prod/tfplan
           fi
+
+      - name: Debug: List Files
+        run: ls -l terraform/environments/prod/
 
       - name: Upload Plan
         uses: actions/upload-artifact@v3
         with:
           name: terraform-plan
-          path: tfplan
+          path: terraform/environments/prod/tfplan
 
   terraform-apply:
     runs-on: ubuntu-latest
     needs: terraform-plan
     if: inputs.action == 'apply'
-    environment:
-      name: production
     steps:
       - uses: actions/checkout@v4
 
@@ -83,14 +84,12 @@ jobs:
         run: terraform init
 
       - name: Terraform Apply
-        run: terraform apply -auto-approve tfplan
+        run: terraform apply -auto-approve terraform/environments/prod/tfplan
 
   terraform-destroy:
     runs-on: ubuntu-latest
     needs: terraform-plan
     if: inputs.action == 'destroy'
-    environment:
-      name: production
     steps:
       - uses: actions/checkout@v4
 
@@ -114,4 +113,4 @@ jobs:
         run: terraform init
 
       - name: Terraform Destroy
-        run: terraform destroy -auto-approve tfplan
+        run: terraform destroy -auto-approve terraform/environments/prod/tfplan
