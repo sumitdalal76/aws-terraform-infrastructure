@@ -45,16 +45,22 @@ jobs:
       - name: Terraform Init
         run: terraform init
 
-      - name: Terraform Plan and Execute
+      - name: Terraform Plan
         run: |
           if [ "${{ inputs.action }}" == "destroy" ]; then
             echo "Running Terraform Plan for Destroy..."
             terraform plan -destroy -out=tfplan
-            echo "Executing Terraform Destroy..."
-            terraform destroy -auto-approve
           else
             echo "Running Terraform Plan for Apply..."
             terraform plan -out=tfplan
+          fi
+
+      - name: Terraform Apply or Destroy
+        run: |
+          if [ "${{ inputs.action }}" == "destroy" ]; then
+            echo "Executing Terraform Destroy..."
+            terraform destroy -auto-approve
+          else
             echo "Executing Terraform Apply..."
             terraform apply -auto-approve tfplan
           fi
