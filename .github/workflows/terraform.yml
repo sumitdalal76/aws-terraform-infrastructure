@@ -1,18 +1,29 @@
-name: 'Terraform Plan'
+name: 'Terraform Infrastructure Workflow'
 
 on:
   push:
+
     branches: [ "main", "aws-terraform-infra" ]
   pull_request:
     branches: [ "main", "aws-terraform-infra" ]
   workflow_dispatch:
+    inputs:
+      action:
+        description: 'Terraform Action'
+        required: true
+        default: 'plan'
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
 
 permissions:
   id-token: write
   contents: read
 
 jobs:
-  plan:
+  terraform:
     runs-on: ubuntu-latest
     
     defaults:
@@ -37,5 +48,18 @@ jobs:
         run: terraform init
 
       - name: Terraform Plan
+        if: github.event.inputs.action == 'plan' || github.event_name == 'push' || github.event_name == 'pull_request'
         id: plan
         run: terraform plan
+
+      - name: Terraform Apply
+        if: github.event.inputs.action == 'apply'
+        run: terraform apply
+
+      - name: Terraform Plan Destroy
+        if: github.event.inputs.action == 'destroy'
+        run: terraform plan -destroy
+
+      - name: Terraform Destroy
+        if: github.event.inputs.action == 'destroy'
+        run: terraform destroy
