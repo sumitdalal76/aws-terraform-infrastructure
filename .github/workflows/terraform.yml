@@ -44,12 +44,13 @@ jobs:
         run: |
           if [ "${{ inputs.action }}" == "destroy" ]; then
             terraform plan -destroy -out=terraform/environments/prod/tfplan
-          else
+          elses
             terraform plan -out=terraform/environments/prod/tfplan
           fi
 
-      - name: Debug: List Files
-        run: ls -l terraform/environments/prod/
+      - name: Debug List Files
+        run: |
+          ls -l terraform/environments/prod/
 
       - name: Upload Plan
         uses: actions/upload-artifact@v3
