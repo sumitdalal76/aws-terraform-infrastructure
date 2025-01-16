@@ -5,28 +5,26 @@ on:
     branches:
       - main
       - aws-terraform-infrastructure
-  pull_request:
-    branches:
-      - main
-      - aws-terraform-infrastructure
+  workflow_dispatch:  
+    inputs:
 
-permissions:
-  contents: read
-  pull-requests: write
+      environment:
+        description: 'Select environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - prod
 
 jobs:
   terraform:
     name: 'Terraform'
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        environment: [prod, staging]
-        
-    environment: ${{ matrix.environment }}
     
     defaults:
       run:
-        working-directory: terraform/environments/${{ matrix.environment }}
+        working-directory: terraform/environments/${{ github.event.inputs.environment || 'staging' }}
 
     steps:
     - name: Checkout
@@ -44,42 +42,11 @@ jobs:
       with:
         terraform_version: "1.5.0"
 
-    - name: Terraform Format
-      run: terraform fmt -check
-      continue-on-error: true
-
     - name: Terraform Init
       run: terraform init
 
     - name: Terraform Plan
-      id: plan
-      run: terraform plan -no-color
-      continue-on-error: true
-
-    - name: Update Pull Request
-      uses: actions/github-script@v6
-      if: github.event_name == 'pull_request'
-      env:
-        PLAN: "${{ steps.plan.outputs.stdout }}"
-      with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        script: |
-          const output = `#### Terraform Plan 📝\`${{ matrix.environment }}\` Environment
-          <details><summary>Show Plan</summary>
-          
-          \`\`\`\n
-          ${process.env.PLAN}
-          \`\`\`
-          
-          </details>`;
-            
-          github.rest.issues.createComment({
-            issue_number: context.issue.number,
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            body: output
-          })
+      run: terraform plan
 
     - name: Terraform Apply
-      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
       run: terraform apply -auto-approve 
