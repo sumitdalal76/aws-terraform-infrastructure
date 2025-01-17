@@ -1,9 +1,12 @@
-# AWS Infrastructure Project
+# **AWS Infrastructure Deployment with Terraform**
 
-This project contains a modular Infrastructure as Code (IaC) implementation using Terraform with GitHub Actions CI/CD pipelines.
+<img src="ArchitectureDiagram/architecture.png" alt="AWS Infrastructure Architecture" width="800"/>
 
-## Project Structure
+## **Introduction**
 
+Creating a modular Infrastructure as Code (IaC) with Terraform is a great way to manage AWS resources efficiently and securely. This guide provides step-by-step instructions on how to create a VPC with public and private subnets, load balancer, and other AWS resources using Terraform modules with GitHub Actions CI/CD pipelines. We will use "prod" as an example name for the infrastructure throughout this guide.
+
+## **Project Structure**
 ```
 .
 ├── modules/
@@ -14,98 +17,223 @@ This project contains a modular Infrastructure as Code (IaC) implementation usin
 ├── environments/
 │   └── prod/          # Production Environment
 └── .github/
-    └── workflows/     # CI/CD Pipeline Configurations
+    └── workflows/     # CI/CD Configurations
 ```
 
-## Infrastructure Components
+## **Prerequisites**
 
-- VPC with public and private subnets
-- Route Tables for each subnet type
-- Security Group for web traffic
-- Application Load Balancer with HTTP to HTTPS redirect
-- Route53 hosted zone with CNAME record
+1. AWS Account Setup:
+   - AWS CLI configured
+   - IAM permissions
+   - Access and Secret keys
 
-## Prerequisites
+2. Required Tools:
+   - Terraform >= 1.0.0
+   - Git
+   - GitHub Account
 
-- AWS CLI configured with appropriate credentials
-- Terraform >= 1.0.0
-- S3 bucket for Terraform state
-- GitHub repository secrets configured:
-  - AWS_ACCESS_KEY_ID
-  - AWS_SECRET_ACCESS_KEY
+3. Repository Secrets:
+   - IODC IAM role for GitHub Actions
 
-## GitHub Actions Workflows
+## **Step-by-Step Guide**
 
-### 1. Terraform CI/CD (terraform.yml)
-Main deployment pipeline that:
-- Runs on push to main and pull requests
-- Formats and validates Terraform code
-- Plans changes on pull requests
-- Applies changes when merged to main
-- Allows manual destroy via workflow dispatch
+### 1. CREATE A VPC
 
-### 2. Terraform CI (terraform-ci.yml)
-Continuous Integration workflow that:
-- Validates code on pull requests
-- Runs terraform fmt check
-- Performs terraform plan
-- Shows potential changes before merge
+1. First, create the VPC module with the following settings:
+   - VPC Name: "prod-vpc"
+   - IPv4 CIDR block: 10.0.0.0/16
+   - Enable DNS hostnames
+   - Enable DNS support
 
-### 3. Terraform Deploy (terraform-deploy.yml)
-Manual deployment workflow that:
-- Triggered manually via workflow dispatch
-- Allows selecting environment (prod)
-- Runs plan and apply
-- Useful for one-off deployments
-
-### 4. Terraform Destroy (terraform-destroy.yml)
-Infrastructure cleanup workflow that:
-- Triggered manually via workflow dispatch
-- Requires environment approval
-- Destroys all resources in selected environment
-- Use with caution!
-
-### 5. AWS Inventory (aws-inventory.yml)
-Resource tracking workflow that:
-- Can be triggered manually
-- Generates inventory of AWS resources:
-  - VPCs and Networking
-  - EC2 Instances
-  - RDS Databases
-  - Lambda Functions
-  - DynamoDB Tables
-  - S3 Buckets
-- Saves inventory as workflow artifact
-
-## Usage
-
-1. Configure AWS credentials and S3 backend
-2. Create `terraform.tfvars` in the environment directory:
+2. Configure the VPC in terraform.tfvars:
 ```hcl
-aws_region = "ca-central-1"
-project_name = "prod"
 vpc_cidr = "10.0.0.0/16"
-public_subnet_cidrs = ["10.0.1.0/24", "10.0.2.0/24"]
-private_subnet_cidrs = ["10.0.3.0/24", "10.0.4.0/24"]
+project_name = "prod"
 ```
 
-3. Push to GitHub to trigger CI/CD pipeline
+3. The VPC module will automatically enable DNS hostnames and support.
 
-4. For manual operations:
-   - Use "Terraform Deploy" workflow for deployments
-   - Use "Terraform Destroy" workflow for cleanup
-   - Use "AWS Inventory" workflow to check resources
+### 2. CREATE SUBNETS
+
+Next, you will need to create the public and private subnets. Configure the following settings:
+
+Under "networking" module, create subnets with these settings:
+
+**Public Subnet 1:**
+- Subnet Name: "prod-public-subnet-1"
+- Availability Zone: ca-central-1a
+- IPv4 CIDR block: 10.0.1.0/24
+
+**Public Subnet 2:**
+- Subnet Name: "prod-public-subnet-2"
+- Availability Zone: ca-central-1b
+- IPv4 CIDR block: 10.0.2.0/24
+
+**Private Subnet 1:**
+- Subnet Name: "prod-private-subnet-1"
+- Availability Zone: ca-central-1a
+- IPv4 CIDR block: 10.0.3.0/24
+
+**Private Subnet 2:**
+- Subnet Name: "prod-private-subnet-2"
+- Availability Zone: ca-central-1b
+- IPv4 CIDR block: 10.0.4.0/24
+
+### 3. CREATE INTERNET GATEWAY
+
+1. Create an Internet Gateway:
+   - Name: "prod-igw"
+   - Attach to: prod-vpc
+
+2. This enables internet access for resources in public subnets.
+
+### 4. CREATE NAT GATEWAY
+
+1. Create NAT Gateway in the first public subnet:
+   - Name: "prod-nat"
+   - Subnet: prod-public-subnet-1
+   - Requires: Elastic IP allocation
+
+2. This enables internet access for resources in private subnets.
+
+### 5. CREATE ROUTE TABLES
+
+1. Create Public Route Table:
+   - Name: "prod-public-rt"
+   - Route to Internet Gateway (0.0.0.0/0)
+   - Associate with public subnets
+
+2. Create Private Route Table:
+   - Name: "prod-private-rt"
+   - Route to NAT Gateway (0.0.0.0/0)
+   - Associate with private subnets
+
+### 6. CREATE SECURITY GROUPS
+
+Create security groups with the following rules:
+
+**ALB Security Group:**
+- Name: "prod-alb-sg"
+- Inbound Rules:
+  - HTTP (80) from 0.0.0.0/0
+  - HTTPS (443) from 0.0.0.0/0
+- Outbound Rules:
+  - All traffic to 0.0.0.0/0
+
+### 7. CREATE LOAD BALANCER
+
+1. Create Application Load Balancer:
+   - Name: "prod-alb"
+   - Scheme: internet-facing
+   - Subnets: Both public subnets
+   - Security Group: prod-alb-sg
+
+2. Create Target Group:
+   - Name: "prod-tg"
+   - Protocol: HTTP
+   - Port: 80
+   - VPC: prod-vpc
+
+3. Create Listener:
+   - Protocol: HTTP
+   - Port: 80
+   - Default Action: Forward to target group
+
+## **GitHub Actions Workflows**
+
+### 1. TERRAFORM CI/CD WORKFLOW (terraform.yml)
+
+This is the main deployment pipeline:
+
+1. Trigger Conditions:
+   - Push to main branch
+   - Pull requests
+   - Manual workflow dispatch
+
+2. Workflow Steps:
+   - Checkout code
+   - Setup Terraform
+   - Configure AWS credentials
+   - Initialize Terraform
+   - Format check
+   - Validate configuration
+   - Plan changes
+   - Apply changes (on main branch)
+
+### 2. TERRAFORM CI WORKFLOW (terraform-ci.yml)
+
+Handles continuous integration:
+
+1. Trigger Conditions:
+   - Pull requests
+   - Push to main
+
+2. Workflow Steps:
+   - Code validation
+   - Format checking
+   - Plan generation
+   - Plan output on pull requests
+
+### 3. TERRAFORM DEPLOY WORKFLOW (terraform-deploy.yml)
+
+Manual deployment workflow:
+
+1. Trigger Conditions:
+   - Manual workflow dispatch
+
+2. Workflow Steps:
+   - Environment selection
+   - Plan generation
+   - Apply changes
+   - Deployment verification
+
+### 4. TERRAFORM DESTROY WORKFLOW (terraform-destroy.yml)
+
+Infrastructure cleanup workflow:
+
+1. Trigger Conditions:
+   - Manual workflow dispatch
+   - Environment approval required
+
+2. Workflow Steps:
+   - Environment validation
+   - Plan destruction
+   - Confirmation step
+   - Resource cleanup
+
+### 5. AWS INVENTORY WORKFLOW (aws-inventory.yml)
+
+Resource tracking workflow:
+
+1. Trigger Conditions:
+   - Manual workflow dispatch
+
+2. Workflow Steps:
+   - Scan AWS resources
+   - Generate inventory tables
+   - Create JSON report
+   - Save as artifact
 
 ## Security Considerations
 
-- HTTPS redirect enabled (Commented)
-- Private subnets isolated
-- Least privilege IAM roles
-- State file stored in S3
-- Environment approvals required for critical actions
-- Terraform state lock file stored to dynamodb
+1. Network Security:
+   - Private subnets for sensitive resources
+   - Security group restrictions
+   - NAT Gateway for private access
+
+2. Access Control:
+   - IAM least privilege
+   - Environment approvals
+   - State encryption
 
 ## Maintenance
 
-- Infrastructure monitoring
-- State file backup
+1. Regular Tasks:
+   - Infrastructure updates
+   - Security patches
+   - State backups
+
+2. Monitoring:
+   - Resource utilization
+   - Cost tracking
+   - Security compliance
