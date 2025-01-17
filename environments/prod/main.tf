@@ -54,7 +54,7 @@ module "acm" {
   environment  = var.environment
   zone_id      = module.dns.zone_id
 
-  depends_on = [module.dns]
+  depends_on = [null_resource.update_nameservers]
 }
 
 # Loadbalancer module
@@ -97,7 +97,7 @@ module "ec2" {
 
 # Get nameservers after zone creation
 data "aws_route53_zone" "selected" {
-  name = var.domain_name
+  name = var.apex_domain
   depends_on = [module.dns]
 }
 
