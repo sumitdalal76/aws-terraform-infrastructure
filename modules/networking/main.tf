@@ -114,7 +114,7 @@ resource "aws_eip" "eip-for-nat-gateway" {
 }
 
 resource "aws_nat_gateway" "main" {
-  allocation_id = aws_eip.nat.id
+  allocation_id = aws_eip.eip-for-nat-gateway.id
   subnet_id     = aws_subnet.public_1.id
 
   tags = {
