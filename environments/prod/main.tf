@@ -27,11 +27,11 @@ provider "aws" {
 module "networking" {
   source = "../../modules/networking"
 
-  vpc_cidr            = var.vpc_cidr
-  public_subnet_cidrs = var.public_subnet_cidrs
+  vpc_cidr             = var.vpc_cidr
+  public_subnet_cidrs  = var.public_subnet_cidrs
   private_subnet_cidrs = var.private_subnet_cidrs
-  project_name        = var.project_name
-  environment         = var.environment
+  project_name         = var.project_name
+  environment          = var.environment
 }
 
 module "security" {
@@ -46,10 +46,9 @@ module "security" {
 module "dns" {
   source = "../../modules/dns"
 
-  project_name  = var.project_name
-  domain_name   = var.domain_name
-  alb_dns_name  = module.loadbalancer.alb_dns_name
-  environment   = var.environment
+  project_name = var.project_name
+  domain_name  = var.domain_name
+  environment  = var.environment
 }
 
 # ACM module
@@ -79,6 +78,19 @@ module "loadbalancer" {
   certificate_arn   = module.acm.certificate_arn
 
   depends_on = [module.acm]
+}
+
+# Update DNS after load balancer is created
+module "dns_records" {
+  source = "../../modules/dns"
+
+  project_name  = var.project_name
+  domain_name   = var.domain_name
+  environment   = var.environment
+  alb_dns_name  = module.loadbalancer.alb_dns_name
+  zone_id       = module.dns.zone_id
+
+  depends_on = [module.loadbalancer]
 }
 
 module "ec2" {

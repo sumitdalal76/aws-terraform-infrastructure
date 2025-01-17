@@ -3,18 +3,22 @@ variable "project_name" {
   type        = string
 }
 
-variable "environment" {
-  description = "Environment (e.g., prod, dev, staging)"
+variable "domain_name" {
+  description = "Domain name for the hosted zone"
   type        = string
-  default     = "prod"
 }
 
-variable "domain_name" {
-  description = "Domain name for Route53 zone"
+variable "environment" {
+  description = "Environment (e.g., prod, dev, staging)"
   type        = string
 }
 
 variable "alb_dns_name" {
-  description = "DNS name of the load balancer"
+  description = "ALB DNS name for CNAME record"
+  type        = string
+}
+
+variable "zone_id" {
+  description = "Route53 zone ID"
   type        = string
 }

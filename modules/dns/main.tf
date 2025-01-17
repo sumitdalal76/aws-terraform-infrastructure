@@ -8,7 +8,7 @@ resource "aws_route53_zone" "main" {
 }
 
 resource "aws_route53_record" "alb" {
-  zone_id = aws_route53_zone.main.zone_id
+  zone_id = var.zone_id
   name    = var.domain_name
   type    = "CNAME"
   ttl     = "300"
