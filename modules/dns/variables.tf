@@ -17,8 +17,3 @@ variable "alb_dns_name" {
   description = "ALB DNS name for CNAME record"
   type        = string
 }
-
-variable "zone_id" {
-  description = "Route53 zone ID"
-  type        = string
-}
