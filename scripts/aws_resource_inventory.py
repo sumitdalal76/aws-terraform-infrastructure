@@ -14,6 +14,13 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 console = Console()
 
+class DateTimeEncoder(json.JSONEncoder):
+    """Custom JSON encoder for datetime objects"""
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        return super().default(obj)
+
 class AWSResourceInventory:
     def __init__(self):
         self.session = self._get_session()
@@ -212,7 +219,14 @@ class AWSResourceInventory:
             if isinstance(resource_data, list) and resource_data:
                 # Create columns based on the first item
                 if isinstance(resource_data[0], dict):
-                    columns = list(resource_data[0].keys())
+                    # Select specific columns based on resource type
+                    if method_name == 'describe_instances':
+                        columns = ['InstanceId', 'InstanceType', 'State', 'PrivateIpAddress', 'PublicIpAddress']
+                    elif method_name == 'describe_vpcs':
+                        columns = ['VpcId', 'CidrBlock', 'IsDefault', 'State']
+                    else:
+                        columns = list(resource_data[0].keys())
+                    
                     for column in columns:
                         table.add_column(column)
                     
@@ -222,9 +236,6 @@ class AWSResourceInventory:
                         table.add_row(*row)
                     
                     console.print(table)
-            elif resource_data:
-                # If we can't format as a table but have data, print the raw data
-                console.print(json.dumps(resource_data, indent=2))
 
     def generate_inventory(self) -> Dict:
         """Generate complete inventory of AWS resources"""
@@ -264,7 +275,7 @@ class AWSResourceInventory:
     def save_inventory(self, filename: str = 'aws_inventory.json'):
         """Save inventory to a JSON file"""
         with open(filename, 'w') as f:
-            json.dump(self.inventory_data, f, indent=2)
+            json.dump(self.inventory_data, f, indent=2, cls=DateTimeEncoder)
         logger.info(f"Inventory saved to {filename}")
 
 def main():
@@ -276,7 +287,8 @@ def main():
         ca_central = inventory.get_resources('ec2', 'ca-central-1')
         if ca_central:
             console.print("[green]Successfully found resources in ca-central-1[/green]")
-            console.print(json.dumps(ca_central, indent=2))
+            # Use the custom encoder when dumping to JSON
+            console.print(json.dumps(ca_central, indent=2, cls=DateTimeEncoder))
         
         resources = inventory.generate_inventory()
         inventory.save_inventory()
