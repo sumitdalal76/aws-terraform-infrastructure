@@ -1,3 +1,4 @@
+# Create the hosted zone
 resource "aws_route53_zone" "main" {
   name = var.domain_name
 
@@ -8,7 +9,8 @@ resource "aws_route53_zone" "main" {
 }
 
 resource "aws_route53_record" "alb" {
-  zone_id = var.zone_id
+  count   = var.alb_dns_name != "" ? 1 : 0
+  zone_id = aws_route53_zone.main.zone_id
   name    = var.domain_name
   type    = "CNAME"
   ttl     = "300"
