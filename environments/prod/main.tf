@@ -100,9 +100,9 @@ module "ec2" {
 
   project_name      = var.project_name
   environment       = var.environment
-  ami_id           = var.ami_id  # Ubuntu 20.04 AMI ID
-  subnet_id        = module.networking.public_subnet_ids[0]  # First public subnet
-  security_group_id = module.security.web_sg_id
+  ami_id           = var.ami_id
+  subnet_id        = module.networking.public_subnet_ids[0]
+  security_group_id = module.security.alb_sg_id
   target_group_arn = module.loadbalancer.target_group_arn
 
   depends_on = [module.networking, module.security, module.loadbalancer]
