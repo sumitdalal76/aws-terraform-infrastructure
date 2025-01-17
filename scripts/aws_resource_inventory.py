@@ -16,10 +16,29 @@ console = Console()
 
 class AWSResourceInventory:
     def __init__(self):
-        self.session = boto3.Session()
+        self.session = self._get_session()
         self.regions = self._get_regions()
         self.inventory_data = {}
         self.services = self._discover_services()
+
+    def _get_session(self):
+        """Create boto3 session with explicit credential check"""
+        session = boto3.Session()
+        try:
+            sts = session.client('sts')
+            identity = sts.get_caller_identity()
+            logger.info(f"Using IAM Role/User: {identity['Arn']}")
+            logger.info(f"Account ID: {identity['Account']}")
+            
+            # Test EC2 permissions explicitly
+            ec2 = session.client('ec2', region_name='ca-central-1')
+            vpcs = ec2.describe_vpcs()
+            logger.info(f"Found {len(vpcs['Vpcs'])} VPCs in ca-central-1")
+            
+            return session
+        except Exception as e:
+            logger.error(f"Error with AWS credentials: {str(e)}")
+            raise
 
     def _get_regions(self) -> List[str]:
         """Get list of all AWS regions."""
@@ -28,25 +47,27 @@ class AWSResourceInventory:
         return regions
 
     def _discover_services(self) -> Dict:
-        """Automatically discover AWS services and their list methods"""
+        """Discover AWS services with explicit error handling"""
         services = {}
+        core_services = ['ec2', 'elasticloadbalancingv2', 'route53', 'acm']
         
-        # Get all available AWS services
-        available_services = boto3.Session().get_available_services()
-        
-        for service_name in available_services:
+        for service_name in core_services:
             try:
-                # Create a client for the service
                 client = self.session.client(service_name)
+                logger.info(f"Testing {service_name} access...")
                 
-                # Get all available operations for the service
+                # Test specific service access
+                if service_name == 'ec2':
+                    vpcs = client.describe_vpcs()
+                    logger.info(f"EC2 access successful - Found {len(vpcs['Vpcs'])} VPCs")
+                elif service_name == 'elasticloadbalancingv2':
+                    lbs = client.describe_load_balancers()
+                    logger.info(f"ELB access successful - Found {len(lbs['LoadBalancers'])} Load Balancers")
+                
                 operations = client.meta.service_model.operation_names
-                
-                # Look for list/describe operations
                 list_operations = [
                     op for op in operations 
-                    if op.startswith(('list_', 'describe_')) 
-                    and not op.endswith(('_tags', '_tag_keys', '_tag_values'))
+                    if op.startswith(('list_', 'describe_'))
                 ]
                 
                 if list_operations:
@@ -54,46 +75,42 @@ class AWSResourceInventory:
                         'client': service_name,
                         'list_methods': list_operations
                     }
+                    logger.info(f"Added {service_name} with {len(list_operations)} methods")
                     
-            except (ClientError, botocore.exceptions.UnknownServiceError) as e:
-                logger.debug(f"Skipping service {service_name}: {str(e)}")
-                continue
-                
-        logger.info(f"Discovered {len(services)} AWS services")
+            except ClientError as e:
+                logger.error(f"Error accessing {service_name}: {e.response['Error']['Message']}")
+            except Exception as e:
+                logger.error(f"Unexpected error with {service_name}: {str(e)}")
+        
         return services
 
     def get_resources(self, service_name: str, region: str = None) -> Dict[str, List]:
-        """Get only active/used resources for a service"""
+        """Get resources with detailed error handling"""
         resources = {}
-        
         try:
             client = self.session.client(service_name, region_name=region)
+            logger.info(f"Checking {service_name} in {region or 'global'}")
             
-            for method_name in self.services[service_name]['list_methods']:
-                try:
-                    method = getattr(client, method_name)
-                    response = method()
+            if service_name == 'ec2':
+                # Explicitly check EC2 resources
+                vpcs = client.describe_vpcs()
+                instances = client.describe_instances()
+                logger.info(f"Found {len(vpcs['Vpcs'])} VPCs and {len(instances['Reservations'])} EC2 reservations")
+                if vpcs['Vpcs']:
+                    resources['describe_vpcs'] = vpcs
+                if instances['Reservations']:
+                    resources['describe_instances'] = instances
                     
-                    # Remove response metadata
-                    if 'ResponseMetadata' in response:
-                        del response['ResponseMetadata']
-                    
-                    # Filter and process the response
-                    filtered_response = self._filter_active_resources(
-                        service_name, 
-                        method_name, 
-                        response
-                    )
-                    
-                    if filtered_response:
-                        resources[method_name] = filtered_response
-                        
-                except (ClientError, botocore.exceptions.ParamValidationError) as e:
-                    logger.debug(f"Error calling {method_name} for {service_name}: {str(e)}")
-                    continue
+            elif service_name == 'elasticloadbalancingv2':
+                # Explicitly check ELB resources
+                lbs = client.describe_load_balancers()
+                if lbs['LoadBalancers']:
+                    resources['describe_load_balancers'] = lbs
                     
         except ClientError as e:
-            logger.error(f"Error accessing {service_name} in {region}: {str(e)}")
+            logger.error(f"Error getting {service_name} resources in {region}: {e.response['Error']['Message']}")
+        except Exception as e:
+            logger.error(f"Unexpected error with {service_name} in {region}: {str(e)}")
             
         return resources
 
@@ -252,10 +269,22 @@ class AWSResourceInventory:
 
 def main():
     console.print("[bold cyan]Starting AWS Resource Inventory...[/bold cyan]\n")
-    inventory = AWSResourceInventory()
-    resources = inventory.generate_inventory()
-    inventory.save_inventory()
-    console.print("\n[bold cyan]AWS Resource Inventory Complete![/bold cyan]")
+    try:
+        inventory = AWSResourceInventory()
+        
+        # Test specific region first
+        ca_central = inventory.get_resources('ec2', 'ca-central-1')
+        if ca_central:
+            console.print("[green]Successfully found resources in ca-central-1[/green]")
+            console.print(json.dumps(ca_central, indent=2))
+        
+        resources = inventory.generate_inventory()
+        inventory.save_inventory()
+        console.print("\n[bold cyan]AWS Resource Inventory Complete![/bold cyan]")
+    except Exception as e:
+        console.print(f"[bold red]Error: {str(e)}[/bold red]")
+        logger.error(f"Error running inventory: {str(e)}")
+        raise
 
 if __name__ == "__main__":
     main()
