@@ -25,6 +25,7 @@ resource "aws_security_group" "web" {
   }
 
   tags = {
-    Name = "${var.project_name}-web-sg"
+    Name        = "${var.project_name}-web-sg"
+    Environment = var.environment
   }
 }

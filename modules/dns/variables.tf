@@ -3,6 +3,12 @@
 #  type        = string
 #}
 
+#variable "environment" {
+#  description = "Environment (e.g., prod, dev, staging)"
+#  type        = string
+#  default     = "prod"
+#}
+
 #variable "domain_name" {
 #  description = "Domain name for Route53 zone"
 #  type        = string

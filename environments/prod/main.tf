@@ -25,12 +25,14 @@ module "networking" {
   public_subnet_cidrs = var.public_subnet_cidrs
   private_subnet_cidrs = var.private_subnet_cidrs
   project_name        = var.project_name
+  environment         = var.environment
 }
 
 module "security" {
   source = "../../modules/security"
 
   project_name = var.project_name
+  environment  = var.environment
   vpc_id       = module.networking.vpc_id
 }
 
@@ -41,6 +43,7 @@ module "loadbalancer" {
   security_group_id = module.security.security_group_id
   public_subnet_ids = module.networking.public_subnet_ids
   vpc_id            = module.networking.vpc_id
+  environment       = var.environment
 #  certificate_arn   = var.certificate_arn
 }
 
@@ -50,4 +53,5 @@ module "loadbalancer" {
 #  project_name  = var.project_name
 #  domain_name   = var.domain_name
 #  alb_dns_name  = module.loadbalancer.alb_dns_name
+#  environment   = var.environment
 #}

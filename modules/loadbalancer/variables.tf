@@ -8,6 +8,12 @@ variable "vpc_id" {
   type        = string
 }
 
+variable "environment" {
+  description = "Environment (e.g., prod, dev, staging)"
+  type        = string
+  default     = "prod"
+}
+
 variable "security_group_id" {
   description = "ID of the security group"
   type        = string

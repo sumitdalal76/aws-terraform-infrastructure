@@ -4,7 +4,8 @@ resource "aws_vpc" "main" {
   enable_dns_support   = true
 
   tags = {
-    Name = "${var.project_name}-vpc"
+    Name        = "${var.project_name}-vpc"
+    Environment = var.environment
   }
 }
 
@@ -15,7 +16,8 @@ resource "aws_subnet" "public_1" {
   map_public_ip_on_launch = true
 
   tags = {
-    Name = "${var.project_name}-public-subnet-1"
+    Name        = "${var.project_name}-public-subnet-1"
+    Environment = var.environment
   }
 }
 
@@ -26,7 +28,8 @@ resource "aws_subnet" "public_2" {
   map_public_ip_on_launch = true
 
   tags = {
-    Name = "${var.project_name}-public-subnet-2"
+    Name        = "${var.project_name}-public-subnet-2"
+    Environment = var.environment
   }
 }
 
@@ -36,7 +39,8 @@ resource "aws_subnet" "private_1" {
   availability_zone = data.aws_availability_zones.available.names[0]
 
   tags = {
-    Name = "${var.project_name}-private-subnet-1"
+    Name        = "${var.project_name}-private-subnet-1"
+    Environment = var.environment
   }
 }
 
@@ -46,7 +50,8 @@ resource "aws_subnet" "private_2" {
   availability_zone = data.aws_availability_zones.available.names[1]
 
   tags = {
-    Name = "${var.project_name}-private-subnet-2"
+    Name        = "${var.project_name}-private-subnet-2"
+    Environment = var.environment
   }
 }
 
@@ -54,7 +59,8 @@ resource "aws_internet_gateway" "main" {
   vpc_id = aws_vpc.main.id
 
   tags = {
-    Name = "${var.project_name}-igw"
+    Name        = "${var.project_name}-igw"
+    Environment = var.environment
   }
 }
 
@@ -67,7 +73,8 @@ resource "aws_route_table" "public" {
   }
 
   tags = {
-    Name = "${var.project_name}-public-rt"
+    Name        = "${var.project_name}-public-rt"
+    Environment = var.environment
   }
 }
 
@@ -80,7 +87,8 @@ resource "aws_route_table" "private" {
   }
 
   tags = {
-    Name = "${var.project_name}-private-rt"
+    Name        = "${var.project_name}-private-rt"
+    Environment = var.environment
   }
 }
 
@@ -108,7 +116,8 @@ resource "aws_eip" "eip-for-nat-gateway" {
   domain = "vpc"
 
   tags = {
-    Name = "${var.project_name}-nat-eip"
+    Name        = "${var.project_name}-nat-eip"
+    Environment = var.environment
   }
   depends_on = [aws_internet_gateway.main]
 }
@@ -118,7 +127,8 @@ resource "aws_nat_gateway" "main" {
   subnet_id     = aws_subnet.public_1.id
 
   tags = {
-    Name = "${var.project_name}-nat"
+    Name        = "${var.project_name}-nat"
+    Environment = var.environment
   }
 
   depends_on = [aws_internet_gateway.main]

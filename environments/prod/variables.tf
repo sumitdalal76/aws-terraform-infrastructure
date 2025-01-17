@@ -16,6 +16,12 @@ variable "vpc_cidr" {
   default     = "10.0.0.0/16"
 }
 
+variable "environment" {
+  description = "Environment (e.g., prod, dev, staging)"
+  type        = string
+  default     = "prod"
+}
+
 variable "public_subnet_cidrs" {
   description = "CIDR blocks for public subnets"
   type        = list(string)

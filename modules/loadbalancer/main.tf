@@ -6,7 +6,8 @@ resource "aws_lb" "main" {
   subnets           = var.public_subnet_ids
 
   tags = {
-    Name = "${var.project_name}-alb"
+    Name        = "${var.project_name}-alb"
+    Environment = var.environment
   }
 }
 
@@ -30,7 +31,8 @@ resource "aws_lb_target_group" "main" {
   }
 
   tags = {
-    Name = "${var.project_name}-tg"
+    Name        = "${var.project_name}-tg"
+    Environment = var.environment
   }
 }
 
