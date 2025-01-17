@@ -1,9 +1,9 @@
-output "route53_nameservers" {
-  description = "Nameservers for the Route53 zone"
-  value       = aws_route53_zone.main.name_servers
+output "zone_id" {
+  description = "The ID of the hosted zone"
+  value       = aws_route53_zone.main.zone_id
 }
 
-output "route53_zone_id" {
-  description = "Route53 zone ID"
-  value       = aws_route53_zone.main.zone_id
+output "name_servers" {
+  description = "List of name servers for the zone"
+  value       = aws_route53_zone.main.name_servers
 }
