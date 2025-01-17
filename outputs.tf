@@ -13,12 +13,12 @@ output "private_subnet_ids" {
   value       = aws_subnet.private[*].id
 }
 
-output "alb_dns_name" {
-  description = "DNS name of the load balancer"
-  value       = aws_lb.main.dns_name
-}
+#output "alb_dns_name" {
+#  description = "DNS name of the load balancer"
+#  value       = aws_lb.main.dns_name
+#}
 
-output "route53_nameservers" {
-  description = "Nameservers for the Route53 zone"
-  value       = aws_route53_zone.main.name_servers
-}
+#output "route53_nameservers" {
+#  description = "Nameservers for the Route53 zone"
+#  value       = aws_route53_zone.main.name_servers
+#}
