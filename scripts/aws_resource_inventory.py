@@ -94,6 +94,7 @@ class AWSResourceInventory:
         try:
             vpcs = ec2.describe_vpcs()
             return [{
+                'Name': next((tag['Value'] for tag in vpc.get('Tags', []) if tag['Key'] == 'Name'), 'N/A'),
                 'VpcId': vpc['VpcId'],
                 'CidrBlock': vpc['CidrBlock'],
                 'State': vpc['State'],
