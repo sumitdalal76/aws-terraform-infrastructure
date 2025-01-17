@@ -203,72 +203,71 @@ class AWSResourceInventory:
             if not resource_data:
                 continue
 
-            console.print(f"\n[bold blue]{service_name.upper()} - {method_name}[/bold blue]")
+            console.print(f"\n[bold green]=== {service_name.upper()} Resources ===[/bold green]")
             
-            # Convert resource data to table format
-            table = Table(show_header=True)
-            
-            # Extract meaningful data from the response
-            if isinstance(resource_data, dict):
-                # Find the first list in the response
-                for key, value in resource_data.items():
-                    if isinstance(value, list) and value:
-                        resource_data = value
-                        break
-            
-            if isinstance(resource_data, list) and resource_data:
-                # Create columns based on the first item
-                if isinstance(resource_data[0], dict):
-                    # Select specific columns based on resource type
-                    if method_name == 'describe_instances':
-                        columns = ['InstanceId', 'InstanceType', 'State', 'PrivateIpAddress', 'PublicIpAddress']
-                    elif method_name == 'describe_vpcs':
-                        columns = ['VpcId', 'CidrBlock', 'IsDefault', 'State']
-                    else:
-                        columns = list(resource_data[0].keys())
-                    
-                    for column in columns:
-                        table.add_column(column)
-                    
-                    # Add rows
-                    for item in resource_data:
-                        row = [str(item.get(col, 'N/A')) for col in columns]
-                        table.add_row(*row)
-                    
-                    console.print(table)
+            if method_name == 'describe_vpcs':
+                table = Table(title="VPCs")
+                table.add_column("VPC ID")
+                table.add_column("CIDR Block")
+                table.add_column("Name")
+                table.add_column("Is Default")
+                table.add_column("State")
+
+                for vpc in resource_data['Vpcs']:
+                    if not vpc.get('IsDefault', False):  # Skip default VPCs
+                        name = next((tag['Value'] for tag in vpc.get('Tags', []) if tag['Key'] == 'Name'), 'N/A')
+                        table.add_row(
+                            vpc['VpcId'],
+                            vpc['CidrBlock'],
+                            name,
+                            str(vpc.get('IsDefault', False)),
+                            vpc['State']
+                        )
+                console.print(table)
+
+            elif method_name == 'describe_instances':
+                table = Table(title="EC2 Instances")
+                table.add_column("Instance ID")
+                table.add_column("Name")
+                table.add_column("Type")
+                table.add_column("State")
+                table.add_column("Private IP")
+                table.add_column("Public IP")
+
+                for reservation in resource_data['Reservations']:
+                    for instance in reservation['Instances']:
+                        if instance['State']['Name'] != 'terminated':  # Skip terminated instances
+                            name = next((tag['Value'] for tag in instance.get('Tags', []) if tag['Key'] == 'Name'), 'N/A')
+                            table.add_row(
+                                instance['InstanceId'],
+                                name,
+                                instance['InstanceType'],
+                                instance['State']['Name'],
+                                instance.get('PrivateIpAddress', 'N/A'),
+                                instance.get('PublicIpAddress', 'N/A')
+                            )
+                console.print(table)
 
     def generate_inventory(self) -> Dict:
         """Generate complete inventory of AWS resources"""
+        console.print("\n[bold cyan]=== AWS Resource Inventory ===[/bold cyan]\n")
+        
         timestamp = datetime.now().isoformat()
         self.inventory_data = {
             'timestamp': timestamp,
-            'regions': {},
-            'global_services': {}
+            'regions': {}
         }
         
-        console.print("\n[bold cyan]=== AWS Resource Inventory ===[/bold cyan]\n")
+        # Focus on ca-central-1 first
+        region = 'ca-central-1'
+        console.print(f"\n[bold blue]Scanning region: {region}[/bold blue]")
         
-        # Handle global services
-        global_services = ['s3', 'iam', 'route53', 'cloudfront']
-        for service in self.services:
-            if service in global_services:
-                resources = self.get_resources(service)
-                if resources:
-                    self.inventory_data['global_services'][service] = resources
-                    console.print(f"\n[bold green]Global {service.upper()} Resources[/bold green]")
-                    self.print_resources(resources, service)
+        resources = self.get_resources('ec2', region)
+        if resources:
+            self.inventory_data['regions'][region] = resources
+            self.print_resources(resources, 'ec2')
         
-        # Handle regional services
-        for region in self.regions:
-            console.print(f"\n[bold green]Scanning region: {region}[/bold green]")
-            self.inventory_data['regions'][region] = {}
-            
-            for service_name in self.services:
-                if service_name not in global_services:
-                    resources = self.get_resources(service_name, region)
-                    if resources:
-                        self.inventory_data['regions'][region][service_name] = resources
-                        self.print_resources(resources, service_name)
+        # Add other services as needed
         
         return self.inventory_data
 
