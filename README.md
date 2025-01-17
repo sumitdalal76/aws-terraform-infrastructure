@@ -33,7 +33,7 @@ Creating a modular Infrastructure as Code (IaC) with Terraform is a great way to
    - GitHub Account
 
 3. Repository Secrets:
-   - IODC IAM role for GitHub Actions
+   - OIDC(OpenID Connect) IAM role for GitHub Actions
 
 ## **Step-by-Step Guide**
 
@@ -143,9 +143,8 @@ Create security groups with the following rules:
 ### **DNS Configuration**
 - ⏸️ Public Route53 hosted zone and CNAME entry for the ELB - *Commented out*
 
-## **Note on DNS and HTTPS Implementation**
-
-The following components are currently commented out in the code:
+## <span style="color: red">Note on DNS and HTTPS Implementation</span>
+## <span style="color: red">The following components are currently commented out in the code:</span>
 
 1. **Route53 and CNAME Configuration**
    - Requirements: "Public route53 hosted zone and CNAME entry for the ELB"
