@@ -40,6 +40,7 @@ module "loadbalancer" {
   project_name      = var.project_name
   security_group_id = module.security.security_group_id
   public_subnet_ids = module.networking.public_subnet_ids
+  vpc_id            = module.networking.vpc_id
 #  certificate_arn   = var.certificate_arn
 }
 
