@@ -8,8 +8,8 @@ resource "aws_route53_zone" "main" {
   }
 }
 
+# Create CNAME record for ALB
 resource "aws_route53_record" "alb" {
-  count   = var.alb_dns_name != "" ? 1 : 0
   zone_id = aws_route53_zone.main.zone_id
   name    = var.domain_name
   type    = "CNAME"
