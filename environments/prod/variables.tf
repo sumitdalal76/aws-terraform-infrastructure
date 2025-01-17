@@ -39,11 +39,6 @@ variable "domain_name" {
   type        = string
 }
 
-variable "certificate_arn" {
-  description = "ARN of SSL certificate for HTTPS listener"
-  type        = string
-}
-
 variable "ami_id" {
   description = "AMI ID for EC2 instances"
   type        = string
