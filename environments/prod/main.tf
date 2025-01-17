@@ -77,7 +77,6 @@ module "loadbalancer" {
   public_subnets  = module.networking.public_subnet_ids
   security_groups = [module.security.alb_sg_id]
   certificate_arn = module.acm.certificate_arn
-  environment     = var.environment
 
   depends_on = [module.acm]
 }
