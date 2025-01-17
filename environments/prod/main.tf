@@ -42,14 +42,13 @@ module "security" {
   vpc_id       = module.networking.vpc_id
 }
 
-# DNS module
+# Create DNS zone first (needed for ACM validation)
 module "dns" {
   source = "../../modules/dns"
 
   project_name = var.project_name
   domain_name  = var.domain_name
   environment  = var.environment
-  alb_dns_name = ""  # Empty for initial zone creation
 }
 
 # ACM module
@@ -83,11 +82,10 @@ module "loadbalancer" {
 
 # Update DNS after load balancer is created
 module "dns_records" {
-  source = "../../modules/dns"
+  source = "../../modules/dns_records"
 
-  project_name = var.project_name
+  zone_id      = module.dns.zone_id
   domain_name  = var.domain_name
-  environment  = var.environment
   alb_dns_name = module.loadbalancer.alb_dns_name
 
   depends_on = [module.loadbalancer]
