@@ -40,13 +40,13 @@ module "loadbalancer" {
   project_name      = var.project_name
   security_group_id = module.security.security_group_id
   public_subnet_ids = module.networking.public_subnet_ids
-  certificate_arn   = var.certificate_arn
+#  certificate_arn   = var.certificate_arn
 }
 
-module "dns" {
-  source = "../../modules/dns"
+#module "dns" {
+#  source = "../../modules/dns"
 
-  project_name  = var.project_name
-  domain_name   = var.domain_name
-  alb_dns_name  = module.loadbalancer.alb_dns_name
-}
+#  project_name  = var.project_name
+#  domain_name   = var.domain_name
+#  alb_dns_name  = module.loadbalancer.alb_dns_name
+#}

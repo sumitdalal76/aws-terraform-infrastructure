@@ -28,12 +28,12 @@ variable "private_subnet_cidrs" {
   default     = ["10.0.3.0/24", "10.0.4.0/24"]
 }
 
-variable "domain_name" {
-  description = "Domain name for Route53 hosted zone"
-  type        = string
-}
+#variable "domain_name" {
+#  description = "Domain name for Route53 hosted zone"
+#  type        = string
+#}
 
-variable "certificate_arn" {
-  description = "ARN of SSL certificate for HTTPS listener"
-  type        = string
-}
+#variable "certificate_arn" {
+#  description = "ARN of SSL certificate for HTTPS listener"
+#  type        = string
+#}

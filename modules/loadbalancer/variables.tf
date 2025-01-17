@@ -13,7 +13,7 @@ variable "public_subnet_ids" {
   type        = list(string)
 }
 
-variable "certificate_arn" {
-  description = "ARN of SSL certificate"
-  type        = string
-}
+#variable "certificate_arn" {
+#  description = "ARN of SSL certificate"
+#  type        = string
+#}
