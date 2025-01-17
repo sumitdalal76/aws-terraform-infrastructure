@@ -76,7 +76,9 @@ module "loadbalancer" {
   public_subnet_ids = module.networking.public_subnet_ids
   vpc_id            = module.networking.vpc_id
   environment       = var.environment
-  certificate_arn   = var.certificate_arn
+  certificate_arn   = module.acm.certificate_arn
+
+  depends_on = [module.acm]
 }
 
 module "ec2" {

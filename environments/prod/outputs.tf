@@ -22,3 +22,8 @@ output "private_subnet_ids" {
 #  description = "Nameservers for the Route53 zone"
 #  value       = module.dns.route53_nameservers
 #}
+
+output "certificate_arn" {
+  description = "ACM Certificate ARN"
+  value       = module.acm.certificate_arn
+}
