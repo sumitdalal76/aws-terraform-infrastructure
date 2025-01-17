@@ -143,8 +143,8 @@ Create security groups with the following rules:
 ### **DNS Configuration**
 - ⏸️ Public Route53 hosted zone and CNAME entry for the ELB - *Commented out*
 
-## <span style="color: red">Note on DNS and HTTPS Implementation</span>
-## <span style="color: red">The following components are currently commented out in the code:</span>
+## ❗ Important Note on DNS and HTTPS Implementation ❗
+## ❗ The following components are currently commented out in the code ❗
 
 1. **Route53 and CNAME Configuration**
    - Requirements: "Public route53 hosted zone and CNAME entry for the ELB"
