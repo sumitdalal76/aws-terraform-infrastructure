@@ -13,20 +13,34 @@ console = Console()
 def list_all_resources():
     session = boto3.Session()
     ec2_client = session.client("ec2")
+    
+    try:
+        # Verify IAM credentials
+        sts = session.client('sts')
+        caller_identity = sts.get_caller_identity()
+        console.print(f"[bold green]Using IAM Role/User: {caller_identity['Arn']}[/bold green]")
+        console.print(f"[bold green]Account ID: {caller_identity['Account']}[/bold green]")
+    except ClientError as e:
+        console.print(f"[bold red]Error verifying credentials: {str(e)}[/bold red]")
+        return
 
     try:
         # Get all AWS regions
         regions = [region["RegionName"] for region in ec2_client.describe_regions()["Regions"]]
+        console.print(f"[bold cyan]\nRegions to be scanned:[/bold cyan]")
+        console.print(f"[cyan]{', '.join(sorted(regions))}[/cyan]")
     except ClientError as e:
-        console.print(f"[bold red]Error fetching regions: {e}[/bold red]")
+        console.print(f"[bold red]Error fetching regions: {str(e)}[/bold red]")
         return
 
     try:
         # Get all available AWS services dynamically
         available_services = session.get_available_services()
-        console.print(f"[bold cyan]Starting AWS Resource Inventory...[/bold cyan]")
+        console.print(f"[bold cyan]\nServices to be scanned:[/bold cyan]")
+        console.print(f"[cyan]{', '.join(sorted(available_services))}[/cyan]")
+        console.print(f"\n[bold cyan]Starting AWS Resource Inventory...[/bold cyan]")
     except ClientError as e:
-        console.print(f"[bold red]Error fetching available services: {e}[/bold red]")
+        console.print(f"[bold red]Error fetching available services: {str(e)}[/bold red]")
         return
 
     all_resources = {}
@@ -35,21 +49,18 @@ def list_all_resources():
         for service in available_services:
             try:
                 client = session.client(service, region_name=region)
-
-                # Discover available operations dynamically
                 operations = client.meta.service_model.operation_names
                 list_operations = [op for op in operations if op.startswith("list_") or op.startswith("describe_")]
 
                 for operation in list_operations:
                     try:
-                        # Call the operation dynamically
                         response = getattr(client, operation)()
-                        # Extract the first non-empty key (expected resource list)
                         resources = next(
                             (value for key, value in response.items() if isinstance(value, list) and value), []
                         )
 
                         if resources:
+                            console.print(f"[bold green]Found {len(resources)} resources in {service}:{operation} ({region})[/bold green]")
                             formatted_resources = [
                                 {"Region": region, "Service": service, **flatten_dict(resource)}
                                 for resource in resources
@@ -58,32 +69,38 @@ def list_all_resources():
 
                     except ClientError as e:
                         error_code = e.response['Error']['Code']
-                        console.print(f"[bold yellow]Permission issue or empty response for {operation} in {service}: {error_code}[/bold yellow]")
+                        if error_code in ['AccessDeniedException', 'UnauthorizedOperation']:
+                            console.print(f"[bold yellow]Access denied for {service}:{operation} in {region}[/bold yellow]")
+                        elif error_code == 'OptInRequired':
+                            console.print(f"[bold yellow]Region {region} requires opt-in for {service}[/bold yellow]")
+                        else:
+                            console.print(f"[bold red]Error in {service}:{operation} - {error_code}: {e.response['Error']['Message']}[/bold red]")
                         continue
                     except Exception as e:
-                        console.print(f"[bold red]Error during operation {operation} in {service}: {e}[/bold red]")
+                        console.print(f"[bold red]Error during {service}:{operation} in {region}: {str(e)}[/bold red]")
                         continue
+
             except (ClientError, EndpointConnectionError) as e:
-                console.print(f"[bold red]Error initializing client for {service} in {region}: {e}[/bold red]")
+                if hasattr(e, 'response'):
+                    error_code = e.response['Error']['Code']
+                    error_message = e.response['Error']['Message']
+                    console.print(f"[bold red]Error accessing {service} in {region}: {error_code} - {error_message}[/bold red]")
+                else:
+                    console.print(f"[bold red]Error accessing {service} in {region}: {str(e)}[/bold red]")
                 continue
 
     # Print consolidated tables
-    for service, items in all_resources.items():
-        if items:  # Only print if items exist
-            print_table(service.title(), items)
-
-    # Save inventory to JSON
-    output_file = "aws_all_resources.json"
     if all_resources:
+        for service, items in all_resources.items():
+            print_table(service.title(), items)
+        
+        # Save inventory to JSON
+        output_file = "aws_all_resources.json"
         with open(output_file, "w") as f:
             json.dump(all_resources, f, indent=4)
-        console.print(f"[bold cyan]Inventory saved to {output_file}[/bold cyan]")
+        console.print(f"[bold green]Inventory saved to {output_file}[/bold green]")
     else:
-        console.print("[bold yellow]No resources found. Nothing to save to file.[/bold yellow]")
-
-    # Ensure artifact exists for upload
-    if not os.path.exists(output_file):
-        console.print(f"[bold red]Warning: {output_file} not found. No artifacts will be uploaded.[/bold red]")
+        console.print("[bold yellow]No resources found. This might be due to insufficient permissions.[/bold yellow]")
 
 def flatten_dict(d, parent_key='', sep='_'):
     """
