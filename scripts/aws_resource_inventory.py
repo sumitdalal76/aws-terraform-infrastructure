@@ -32,8 +32,8 @@ def list_all_resources():
 
                 if service == 'ec2':
                     # EC2 Instances
-                    resources = client.describe_instances()
-                    instances = [
+                    instances = client.describe_instances().get("Reservations", [])
+                    ec2_instances = [
                         {
                             "InstanceId": instance["InstanceId"],
                             "State": instance["State"]["Name"],
@@ -41,11 +41,66 @@ def list_all_resources():
                             "PrivateIp": instance.get("PrivateIpAddress"),
                             "PublicIp": instance.get("PublicIpAddress"),
                         }
-                        for reservation in resources.get("Reservations", [])
+                        for reservation in instances
                         for instance in reservation["Instances"]
                     ]
-                    print_table("EC2 Instances", instances)
-                    all_resources[region]['ec2_instances'] = instances
+                    print_table("EC2 Instances", ec2_instances)
+                    all_resources[region]['ec2_instances'] = ec2_instances
+
+                    # VPCs
+                    vpcs = client.describe_vpcs().get("Vpcs", [])
+                    vpc_list = [
+                        {
+                            "VpcId": vpc["VpcId"],
+                            "CidrBlock": vpc["CidrBlock"],
+                            "State": vpc["State"],
+                            "IsDefault": vpc["IsDefault"],
+                        }
+                        for vpc in vpcs
+                    ]
+                    print_table("VPCs", vpc_list)
+                    all_resources[region]['vpcs'] = vpc_list
+
+                    # Subnets
+                    subnets = client.describe_subnets().get("Subnets", [])
+                    subnet_list = [
+                        {
+                            "SubnetId": subnet["SubnetId"],
+                            "VpcId": subnet["VpcId"],
+                            "CidrBlock": subnet["CidrBlock"],
+                            "AvailabilityZone": subnet["AvailabilityZone"],
+                        }
+                        for subnet in subnets
+                    ]
+                    print_table("Subnets", subnet_list)
+                    all_resources[region]['subnets'] = subnet_list
+
+                    # Security Groups
+                    security_groups = client.describe_security_groups().get("SecurityGroups", [])
+                    sg_list = [
+                        {
+                            "GroupId": sg["GroupId"],
+                            "GroupName": sg["GroupName"],
+                            "VpcId": sg.get("VpcId", "N/A"),
+                            "Description": sg["Description"],
+                        }
+                        for sg in security_groups
+                    ]
+                    print_table("Security Groups", sg_list)
+                    all_resources[region]['security_groups'] = sg_list
+
+                    # Elastic IPs
+                    eips = client.describe_addresses().get("Addresses", [])
+                    eip_list = [
+                        {
+                            "PublicIp": eip["PublicIp"],
+                            "InstanceId": eip.get("InstanceId", "N/A"),
+                            "AllocationId": eip.get("AllocationId", "N/A"),
+                        }
+                        for eip in eips
+                    ]
+                    print_table("Elastic IPs", eip_list)
+                    all_resources[region]['elastic_ips'] = eip_list
 
                 elif service == 's3':
                     # S3 Buckets (Global Service)
@@ -71,72 +126,32 @@ def list_all_resources():
 
                 elif service == 'lambda':
                     # Lambda Functions
-                    resources = client.list_functions()["Functions"]
-                    functions = [
+                    functions = client.list_functions()["Functions"]
+                    lambda_functions = [
                         {
                             "FunctionName": function["FunctionName"],
                             "Runtime": function["Runtime"],
                         }
-                        for function in resources
+                        for function in functions
                     ]
-                    print_table("Lambda Functions", functions)
-                    all_resources[region]['lambda_functions'] = functions
-
-                elif service == 'dynamodb':
-                    # DynamoDB Tables
-                    resources = client.list_tables()["TableNames"]
-                    dynamodb_tables = [{"TableName": table} for table in resources]
-                    print_table("DynamoDB Tables", dynamodb_tables)
-                    all_resources[region]['dynamodb_tables'] = dynamodb_tables
-
-                elif service == 'elbv2':
-                    # Elastic Load Balancers
-                    resources = client.describe_load_balancers()["LoadBalancers"]
-                    load_balancers = [
-                        {
-                            "Name": lb["LoadBalancerName"],
-                            "DNSName": lb["DNSName"],
-                            "Type": lb["Type"],
-                        }
-                        for lb in resources
-                    ]
-                    print_table("Load Balancers", load_balancers)
-                    all_resources[region]['load_balancers'] = load_balancers
-
-                elif service == 'cloudfront' and region == 'us-east-1':
-                    # CloudFront (Global Service)
-                    distributions = client.list_distributions()["DistributionList"]["Items"]
-                    cloudfront_dist = [{"Id": d["Id"], "DomainName": d["DomainName"]} for d in distributions]
-                    print_table("CloudFront Distributions", cloudfront_dist)
-                    all_resources[region]['cloudfront_distributions'] = cloudfront_dist
+                    print_table("Lambda Functions", lambda_functions)
+                    all_resources[region]['lambda_functions'] = lambda_functions
 
                 elif service == 'route53' and region == 'us-east-1':
-                    # Route53 (Global Service)
-                    hosted_zones = client.list_hosted_zones()["HostedZones"]
-                    route53_zones = [{"Id": zone["Id"], "Name": zone["Name"]} for zone in hosted_zones]
+                    # Route53 Hosted Zones (Global Service)
+                    zones = client.list_hosted_zones().get("HostedZones", [])
+                    route53_zones = [{"Id": zone["Id"], "Name": zone["Name"]} for zone in zones]
                     print_table("Route53 Hosted Zones", route53_zones)
                     all_resources[region]['route53_zones'] = route53_zones
 
-                elif service == 'acm':
-                    # ACM Certificates
-                    resources = client.list_certificates()["CertificateSummaryList"]
-                    certificates = [{"DomainName": cert["DomainName"], "Status": cert["Status"]} for cert in resources]
-                    print_table("ACM Certificates", certificates)
-                    all_resources[region]['acm_certificates'] = certificates
-
-                elif service == 'sns':
-                    # SNS Topics
-                    topics = client.list_topics()["Topics"]
-                    sns_topics = [{"TopicArn": topic["TopicArn"]} for topic in topics]
-                    print_table("SNS Topics", sns_topics)
-                    all_resources[region]['sns_topics'] = sns_topics
-
-                elif service == 'sqs':
-                    # SQS Queues
-                    queues = client.list_queues().get("QueueUrls", [])
-                    sqs_queues = [{"QueueUrl": queue} for queue in queues]
-                    print_table("SQS Queues", sqs_queues)
-                    all_resources[region]['sqs_queues'] = sqs_queues
+                elif service == 'cloudfront' and region == 'us-east-1':
+                    # CloudFront (Global Service)
+                    distributions = client.list_distributions()
+                    distribution_list = distributions.get("DistributionList", {})
+                    items = distribution_list.get("Items", [])
+                    cloudfront_dist = [{"Id": d["Id"], "DomainName": d["DomainName"]} for d in items]
+                    print_table("CloudFront Distributions", cloudfront_dist)
+                    all_resources[region]['cloudfront_distributions'] = cloudfront_dist
 
             except ClientError as e:
                 console.print(f"[bold red]Error fetching data for {service} in {region}: {e}[/bold red]")
