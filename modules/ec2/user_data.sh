@@ -25,5 +25,5 @@ cd /usr/share/nginx/html
 touch index.txt
 echo '<center><h1 style="color:blue">This instance is in the subnet with ID: SUBNETID </h1></center>' > index.txt
 sed "s/SUBNETID/$SUBNETID/" /usr/share/nginx/html/index.txt > /usr/share/nginx/html/index.html
-echo "<center><h1 style='color:green'>I am server 1: $(hostname -f)</h1></center>" >> /usr/share/nginx/html/index.html
+echo "<center><h1 style='color:green'>Hello, I am server: $(hostname -f)</h1></center>" >> /usr/share/nginx/html/index.html
 echo "<center><h2 style='color:purple'>Testing ALB with SSL</h2></center>" >> /usr/share/nginx/html/index.html

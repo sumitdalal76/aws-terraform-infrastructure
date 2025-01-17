@@ -7,6 +7,7 @@ import logging
 from rich.console import Console
 from rich.table import Table
 from datetime import datetime
+import botocore
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -18,208 +19,242 @@ class AWSResourceInventory:
         self.session = boto3.Session()
         self.regions = self._get_regions()
         self.inventory_data = {}
-        
+        self.services = self._discover_services()
+
     def _get_regions(self) -> List[str]:
         """Get list of all AWS regions."""
         ec2 = self.session.client('ec2')
         regions = [region['RegionName'] for region in ec2.describe_regions()['Regions']]
         return regions
 
-    def get_ec2_instances(self, region: str) -> List[Dict]:
-        """Get detailed information about EC2 instances in a region."""
-        ec2 = self.session.client('ec2', region_name=region)
-        try:
-            instances = ec2.describe_instances()
-            instance_list = []
-            for reservation in instances['Reservations']:
-                for instance in reservation['Instances']:
-                    instance_list.append({
-                        'InstanceId': instance['InstanceId'],
-                        'InstanceType': instance['InstanceType'],
-                        'State': instance['State']['Name'],
-                        'LaunchTime': instance['LaunchTime'].isoformat(),
-                        'Tags': instance.get('Tags', [])
-                    })
-            return instance_list
-        except ClientError as e:
-            logger.error(f"Error getting EC2 instances in {region}: {e}")
-            return []
+    def _discover_services(self) -> Dict:
+        """Automatically discover AWS services and their list methods"""
+        services = {}
+        
+        # Get all available AWS services
+        available_services = boto3.Session().get_available_services()
+        
+        for service_name in available_services:
+            try:
+                # Create a client for the service
+                client = self.session.client(service_name)
+                
+                # Get all available operations for the service
+                operations = client.meta.service_model.operation_names
+                
+                # Look for list/describe operations
+                list_operations = [
+                    op for op in operations 
+                    if op.startswith(('list_', 'describe_')) 
+                    and not op.endswith(('_tags', '_tag_keys', '_tag_values'))
+                ]
+                
+                if list_operations:
+                    services[service_name] = {
+                        'client': service_name,
+                        'list_methods': list_operations
+                    }
+                    
+            except (ClientError, botocore.exceptions.UnknownServiceError) as e:
+                logger.debug(f"Skipping service {service_name}: {str(e)}")
+                continue
+                
+        logger.info(f"Discovered {len(services)} AWS services")
+        return services
 
-    def get_rds_instances(self, region: str) -> List[Dict]:
-        """Get detailed information about RDS instances in a region."""
-        rds = self.session.client('rds', region_name=region)
+    def get_resources(self, service_name: str, region: str = None) -> Dict[str, List]:
+        """Get only active/used resources for a service"""
+        resources = {}
+        
         try:
-            instances = rds.describe_db_instances()
-            return [{
-                'DBInstanceIdentifier': instance['DBInstanceIdentifier'],
-                'Engine': instance['Engine'],
-                'DBInstanceClass': instance['DBInstanceClass'],
-                'Status': instance['DBInstanceStatus']
-            } for instance in instances['DBInstances']]
+            client = self.session.client(service_name, region_name=region)
+            
+            for method_name in self.services[service_name]['list_methods']:
+                try:
+                    method = getattr(client, method_name)
+                    response = method()
+                    
+                    # Remove response metadata
+                    if 'ResponseMetadata' in response:
+                        del response['ResponseMetadata']
+                    
+                    # Filter and process the response
+                    filtered_response = self._filter_active_resources(
+                        service_name, 
+                        method_name, 
+                        response
+                    )
+                    
+                    if filtered_response:
+                        resources[method_name] = filtered_response
+                        
+                except (ClientError, botocore.exceptions.ParamValidationError) as e:
+                    logger.debug(f"Error calling {method_name} for {service_name}: {str(e)}")
+                    continue
+                    
         except ClientError as e:
-            logger.error(f"Error getting RDS instances in {region}: {e}")
-            return []
+            logger.error(f"Error accessing {service_name} in {region}: {str(e)}")
+            
+        return resources
 
-    def get_s3_buckets(self) -> List[Dict]:
-        """Get information about S3 buckets."""
-        s3 = self.session.client('s3')
-        try:
-            buckets = s3.list_buckets()['Buckets']
-            return [{
-                'Name': bucket['Name'],
-                'CreationDate': bucket['CreationDate'].isoformat()
-            } for bucket in buckets]
-        except ClientError as e:
-            logger.error(f"Error getting S3 buckets: {e}")
-            return []
+    def _filter_active_resources(self, service_name: str, method_name: str, response: Dict) -> Dict:
+        """Filter only active/used resources"""
+        if not response:
+            return None
 
-    def get_lambda_functions(self, region: str) -> List[Dict]:
-        """Get information about Lambda functions in a region."""
-        lambda_client = self.session.client('lambda', region_name=region)
-        try:
-            functions = lambda_client.list_functions()
-            return [{
-                'FunctionName': function['FunctionName'],
-                'Runtime': function['Runtime'],
-                'Memory': function['MemorySize'],
-                'Timeout': function['Timeout']
-            } for function in functions['Functions']]
-        except ClientError as e:
-            logger.error(f"Error getting Lambda functions in {region}: {e}")
-            return []
+        # Handle specific service responses
+        if service_name == 'ec2':
+            if method_name == 'describe_instances':
+                active_instances = []
+                for reservation in response.get('Reservations', []):
+                    for instance in reservation.get('Instances', []):
+                        # Only include running or stopped instances
+                        if instance['State']['Name'] not in ['terminated', 'shutting-down']:
+                            active_instances.append(instance)
+                if active_instances:
+                    return {'Reservations': [{'Instances': active_instances}]}
+            
+            elif method_name == 'describe_vpcs':
+                # Filter out default VPCs
+                active_vpcs = [
+                    vpc for vpc in response.get('Vpcs', [])
+                    if not vpc.get('IsDefault', False)
+                ]
+                if active_vpcs:
+                    return {'Vpcs': active_vpcs}
 
-    def get_vpcs(self, region: str) -> List[Dict]:
-        """Get information about VPCs in a region."""
-        ec2 = self.session.client('ec2', region_name=region)
-        try:
-            vpcs = ec2.describe_vpcs()
-            return [{
-                'Name': next((tag['Value'] for tag in vpc.get('Tags', []) if tag['Key'] == 'Name'), 'N/A'),
-                'VpcId': vpc['VpcId'],
-                'CidrBlock': vpc['CidrBlock'],
-                'State': vpc['State'],
-                'IsDefault': vpc['IsDefault'],
-                'Tags': vpc.get('Tags', [])
-            } for vpc in vpcs['Vpcs']]
-        except ClientError as e:
-            logger.error(f"Error getting VPCs in {region}: {e}")
-            return []
+        elif service_name == 'rds':
+            if method_name == 'describe_db_instances':
+                # Only include active DB instances
+                active_dbs = [
+                    db for db in response.get('DBInstances', [])
+                    if db['DBInstanceStatus'] not in ['deleted', 'deleting']
+                ]
+                if active_dbs:
+                    return {'DBInstances': active_dbs}
 
-    def get_dynamodb_tables(self, region: str) -> List[Dict]:
-        """Get information about DynamoDB tables in a region."""
-        dynamodb = self.session.client('dynamodb', region_name=region)
-        try:
-            tables = dynamodb.list_tables()['TableNames']
-            table_info = []
-            for table_name in tables:
-                table = dynamodb.describe_table(TableName=table_name)['Table']
-                table_info.append({
-                    'TableName': table['TableName'],
-                    'Status': table['TableStatus'],
-                    'ItemCount': table.get('ItemCount', 0),
-                    'SizeBytes': table.get('TableSizeBytes', 0),
-                    'ProvisionedThroughput': f"Read: {table['ProvisionedThroughput']['ReadCapacityUnits']}, Write: {table['ProvisionedThroughput']['WriteCapacityUnits']}"
-                })
-            return table_info
-        except ClientError as e:
-            logger.error(f"Error getting DynamoDB tables in {region}: {e}")
-            return []
+        elif service_name == 's3':
+            if method_name == 'list_buckets':
+                # Only include non-empty buckets
+                active_buckets = []
+                for bucket in response.get('Buckets', []):
+                    try:
+                        s3_client = self.session.client('s3')
+                        objects = s3_client.list_objects_v2(
+                            Bucket=bucket['Name'],
+                            MaxKeys=1
+                        )
+                        if objects.get('Contents'):
+                            active_buckets.append(bucket)
+                    except ClientError:
+                        continue
+                if active_buckets:
+                    return {'Buckets': active_buckets}
 
-    def print_table(self, title: str, data: List[Dict]):
-        """Print data in a formatted table."""
-        if not data:
+        elif service_name == 'lambda':
+            if method_name == 'list_functions':
+                # Only include active functions
+                active_functions = [
+                    func for func in response.get('Functions', [])
+                    if func.get('State') != 'Inactive'
+                ]
+                if active_functions:
+                    return {'Functions': active_functions}
+
+        # For other services, check if there's any data
+        for key, value in response.items():
+            if isinstance(value, list) and value:
+                return response
+            elif isinstance(value, dict) and value:
+                return response
+
+        return None
+
+    def print_resources(self, resources: Dict, service_name: str):
+        """Print only non-empty resource tables"""
+        if not resources:
             return
 
-        table = Table(title=title, show_header=True, header_style="bold magenta")
-        
-        # Add columns based on the first item's keys
-        columns = list(data[0].keys())
-        for column in columns:
-            table.add_column(column)
-        
-        # Add rows
-        for item in data:
-            row = [str(item[column]) for column in columns]
-            table.add_row(*row)
-        
-        console.print(table)
-        console.print("\n")
+        for method_name, resource_data in resources.items():
+            if not resource_data:
+                continue
 
-    def print_json_output(self, data: Dict, title: str = None):
-        """Print data in JSON format to console."""
-        if title:
-            console.print(f"\n[bold yellow]{title}:[/bold yellow]")
-        console.print_json(json.dumps(data, indent=2))
-        console.print("")
+            console.print(f"\n[bold blue]{service_name.upper()} - {method_name}[/bold blue]")
+            
+            # Convert resource data to table format
+            table = Table(show_header=True)
+            
+            # Extract meaningful data from the response
+            if isinstance(resource_data, dict):
+                # Find the first list in the response
+                for key, value in resource_data.items():
+                    if isinstance(value, list) and value:
+                        resource_data = value
+                        break
+            
+            if isinstance(resource_data, list) and resource_data:
+                # Create columns based on the first item
+                if isinstance(resource_data[0], dict):
+                    columns = list(resource_data[0].keys())
+                    for column in columns:
+                        table.add_column(column)
+                    
+                    # Add rows
+                    for item in resource_data:
+                        row = [str(item.get(col, 'N/A')) for col in columns]
+                        table.add_row(*row)
+                    
+                    console.print(table)
+            elif resource_data:
+                # If we can't format as a table but have data, print the raw data
+                console.print(json.dumps(resource_data, indent=2))
 
     def generate_inventory(self) -> Dict:
-        """Generate complete inventory of AWS resources."""
+        """Generate complete inventory of AWS resources"""
         timestamp = datetime.now().isoformat()
         self.inventory_data = {
             'timestamp': timestamp,
             'regions': {},
-            's3_buckets': self.get_s3_buckets()
+            'global_services': {}
         }
         
         console.print("\n[bold cyan]=== AWS Resource Inventory ===[/bold cyan]\n")
         
-        # Print S3 buckets table
-        console.print("[bold blue]Global Resources[/bold blue]")
-        self.print_table("S3 Buckets", self.inventory_data['s3_buckets'])
-        self.print_json_output(self.inventory_data['s3_buckets'], "S3 Buckets JSON")
+        # Handle global services
+        global_services = ['s3', 'iam', 'route53', 'cloudfront']
+        for service in self.services:
+            if service in global_services:
+                resources = self.get_resources(service)
+                if resources:
+                    self.inventory_data['global_services'][service] = resources
+                    console.print(f"\n[bold green]Global {service.upper()} Resources[/bold green]")
+                    self.print_resources(resources, service)
         
-        console.print("\n[bold cyan]=== Regional Resources ===[/bold cyan]\n")
-        
-        # Get region-specific resources
+        # Handle regional services
         for region in self.regions:
             console.print(f"\n[bold green]Scanning region: {region}[/bold green]")
+            self.inventory_data['regions'][region] = {}
             
-            vpcs = self.get_vpcs(region)
-            ec2_instances = self.get_ec2_instances(region)
-            rds_instances = self.get_rds_instances(region)
-            lambda_functions = self.get_lambda_functions(region)
-            dynamodb_tables = self.get_dynamodb_tables(region)
-            
-            self.inventory_data['regions'][region] = {
-                'vpcs': vpcs,
-                'ec2_instances': ec2_instances,
-                'rds_instances': rds_instances,
-                'lambda_functions': lambda_functions,
-                'dynamodb_tables': dynamodb_tables
-            }
-            
-            self.print_table("VPCs", vpcs)
-            self.print_json_output(vpcs, "VPCs JSON")
-            self.print_table("EC2 Instances", ec2_instances)
-            self.print_json_output(ec2_instances, "EC2 Instances JSON")
-            self.print_table("RDS Instances", rds_instances)
-            self.print_json_output(rds_instances, "RDS Instances JSON")
-            self.print_table("Lambda Functions", lambda_functions)
-            self.print_json_output(lambda_functions, "Lambda Functions JSON")
-            self.print_table("DynamoDB Tables", dynamodb_tables)
-            self.print_json_output(dynamodb_tables, "DynamoDB Tables JSON")
+            for service_name in self.services:
+                if service_name not in global_services:
+                    resources = self.get_resources(service_name, region)
+                    if resources:
+                        self.inventory_data['regions'][region][service_name] = resources
+                        self.print_resources(resources, service_name)
         
         return self.inventory_data
 
-    def save_inventory(self, inventory: Dict, filename: str = 'aws_inventory.json'):
-        """Save inventory to a JSON file."""
+    def save_inventory(self, filename: str = 'aws_inventory.json'):
+        """Save inventory to a JSON file"""
         with open(filename, 'w') as f:
-            json.dump(inventory, f, indent=2)
+            json.dump(self.inventory_data, f, indent=2)
         logger.info(f"Inventory saved to {filename}")
-        
-        # Also print the complete inventory to console
-        console.print("\n[bold cyan]=== Complete Inventory JSON ===[/bold cyan]")
-        self.print_json_output(inventory)
 
 def main():
     console.print("[bold cyan]Starting AWS Resource Inventory...[/bold cyan]\n")
-    
     inventory = AWSResourceInventory()
     resources = inventory.generate_inventory()
-    
-    # Save both JSON and detailed report
-    inventory.save_inventory(resources, 'aws_inventory.json')
-    
+    inventory.save_inventory()
     console.print("\n[bold cyan]AWS Resource Inventory Complete![/bold cyan]")
 
 if __name__ == "__main__":
