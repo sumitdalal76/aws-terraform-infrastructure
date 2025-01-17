@@ -54,9 +54,6 @@ module "dns" {
 # ACM module
 module "acm" {
   source = "../../modules/acm"
-  providers = {
-    aws.us-east-1 = aws.us-east-1
-  }
   
   domain_name  = var.domain_name
   project_name = var.project_name

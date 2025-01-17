@@ -1,6 +1,5 @@
 # Certificate request
 resource "aws_acm_certificate" "main" {
-  provider          = aws.us-east-1
   domain_name       = var.domain_name
   validation_method = "DNS"
 
