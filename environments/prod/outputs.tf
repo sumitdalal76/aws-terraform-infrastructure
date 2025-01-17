@@ -13,17 +13,17 @@ output "private_subnet_ids" {
   value       = module.networking.private_subnet_ids
 }
 
-#output "alb_dns_name" {
-#  description = "DNS name of the load balancer"
-#  value       = module.loadbalancer.alb_dns_name
-#}
-
-#output "route53_nameservers" {
-#  description = "Nameservers for the Route53 zone"
-#  value       = module.dns.route53_nameservers
-#}
-
 output "certificate_arn" {
   description = "ACM Certificate ARN"
   value       = module.acm.certificate_arn
+}
+
+output "summary" {
+  description = "Application Access Information"
+  value = <<EOF
+
+=============================================================
+  Application will be accessible at: https://${var.domain_name}
+=============================================================
+EOF
 }
