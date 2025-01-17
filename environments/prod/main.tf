@@ -42,7 +42,6 @@ module "dns" {
 
   project_name = var.project_name
   apex_domain  = var.apex_domain
-  domain_name  = var.domain_name
   environment  = var.environment
 }
 
