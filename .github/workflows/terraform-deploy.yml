@@ -11,15 +11,7 @@ on:
         options:
           - prod
 
-concurrency: 
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
-permissions:
-  contents: write
-  id-token: write
-  actions: write
-  pull-requests: write
+permissions: write-all
 
 jobs:
   deploy:
@@ -27,6 +19,12 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     
+    permissions:
+      contents: write
+      id-token: write
+      actions: write
+      pull-requests: write
+      
     defaults:
       run:
         working-directory: environments/prod
