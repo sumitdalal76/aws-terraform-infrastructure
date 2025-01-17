@@ -85,11 +85,10 @@ module "loadbalancer" {
 module "dns_records" {
   source = "../../modules/dns"
 
-  project_name  = var.project_name
-  domain_name   = var.domain_name
-  environment   = var.environment
-  alb_dns_name  = module.loadbalancer.alb_dns_name
-  zone_id       = module.dns.zone_id
+  project_name = var.project_name
+  domain_name  = var.domain_name
+  environment  = var.environment
+  alb_dns_name = module.loadbalancer.alb_dns_name
 
   depends_on = [module.loadbalancer]
 }
