@@ -44,7 +44,7 @@ def list_all_resources():
 
                         if resources:
                             formatted_resources = [
-                                {"Region": region, "Service": service, **resource}
+                                {"Region": region, "Service": service, **flatten_dict(resource)}
                                 for resource in resources
                             ]
                             all_resources.setdefault(service, []).extend(formatted_resources)
@@ -65,6 +65,20 @@ def list_all_resources():
     with open("aws_all_resources.json", "w") as f:
         json.dump(all_resources, f, indent=4)
     console.print("[bold cyan]Inventory saved to aws_all_resources.json[/bold cyan]")
+
+def flatten_dict(d, parent_key='', sep='_'):
+    """
+    Flattens nested dictionaries to handle complex AWS resource structures.
+    For example, {"a": {"b": 1}} becomes {"a_b": 1}.
+    """
+    items = []
+    for k, v in d.items():
+        new_key = f"{parent_key}{sep}{k}" if parent_key else k
+        if isinstance(v, dict):
+            items.extend(flatten_dict(v, new_key, sep=sep).items())
+        else:
+            items.append((new_key, v))
+    return dict(items)
 
 def print_table(title, items):
     """Prints a table with a dynamic column structure."""
