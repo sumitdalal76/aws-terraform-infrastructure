@@ -18,12 +18,6 @@ provider "aws" {
   region = var.aws_region
 }
 
-# Provider for us-east-1 (required for ACM certificates used with ALB)
-provider "aws" {
-  alias  = "us-east-1"
-  region = "us-east-1"
-}
-
 module "networking" {
   source = "../../modules/networking"
 
