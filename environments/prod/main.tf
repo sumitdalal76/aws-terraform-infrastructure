@@ -50,7 +50,7 @@ module "dns" {
 module "acm" {
   source = "../../modules/acm"
   providers = {
-    aws.us-east-1 = aws.us-east-1
+    aws.ca-central-1 = aws.ca-central-1
   }
 
   domain_name  = var.domain_name
