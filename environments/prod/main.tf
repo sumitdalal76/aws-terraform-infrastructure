@@ -48,7 +48,7 @@ module "dns" {
 
 # ACM module
 module "acm" {
-  source = "./modules/acm"
+  source = "../../modules/acm"
   providers = {
     aws.us-east-1 = aws.us-east-1
   }
@@ -74,7 +74,7 @@ module "loadbalancer" {
 }
 
 module "ec2" {
-  source = "./modules/ec2"
+  source = "../../modules/ec2"
 
   project_name      = var.project_name
   environment       = var.environment
