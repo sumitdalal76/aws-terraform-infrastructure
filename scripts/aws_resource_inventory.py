@@ -94,25 +94,63 @@ class AWSResourceInventory:
         
         try:
             client = self.session.client(service_name, region_name=region)
+            logger.info(f"Scanning {service_name} resources in {region or 'global'}")
             
-            for method_name in self.services[service_name]['list_methods']:
+            if service_name == 'ec2':
+                # Explicitly handle EC2 resources
                 try:
-                    method = getattr(client, method_name)
-                    response = method()
-                    
-                    # Remove response metadata
-                    if isinstance(response, dict):
-                        response.pop('ResponseMetadata', None)
-                    
-                    if response and any(response.values()):
-                        resources[method_name] = response
-                        logger.info(f"Found resources using {method_name}")
-                        
-                except (ClientError, botocore.exceptions.ParamValidationError) as e:
-                    continue
-                    
+                    vpcs = client.describe_vpcs()
+                    if vpcs.get('Vpcs'):
+                        resources['describe_vpcs'] = vpcs
+                        logger.info(f"Found {len(vpcs['Vpcs'])} VPCs")
+
+                    instances = client.describe_instances()
+                    if instances.get('Reservations'):
+                        resources['describe_instances'] = instances
+                        logger.info(f"Found {len(instances['Reservations'])} EC2 reservations")
+
+                    subnets = client.describe_subnets()
+                    if subnets.get('Subnets'):
+                        resources['describe_subnets'] = subnets
+                        logger.info(f"Found {len(subnets['Subnets'])} Subnets")
+
+                    security_groups = client.describe_security_groups()
+                    if security_groups.get('SecurityGroups'):
+                        resources['describe_security_groups'] = security_groups
+                        logger.info(f"Found {len(security_groups['SecurityGroups'])} Security Groups")
+
+                except ClientError as e:
+                    logger.error(f"Error getting EC2 resources: {str(e)}")
+
+            elif service_name == 'elbv2':
+                try:
+                    lbs = client.describe_load_balancers()
+                    if lbs.get('LoadBalancers'):
+                        resources['describe_load_balancers'] = lbs
+                        logger.info(f"Found {len(lbs['LoadBalancers'])} Load Balancers")
+                except ClientError as e:
+                    logger.error(f"Error getting ELB resources: {str(e)}")
+
+            elif service_name == 'route53':
+                try:
+                    zones = client.list_hosted_zones()
+                    if zones.get('HostedZones'):
+                        resources['list_hosted_zones'] = zones
+                        logger.info(f"Found {len(zones['HostedZones'])} Hosted Zones")
+                except ClientError as e:
+                    logger.error(f"Error getting Route53 resources: {str(e)}")
+
+            elif service_name == 'acm':
+                try:
+                    certs = client.list_certificates()
+                    if certs.get('CertificateSummaryList'):
+                        resources['list_certificates'] = certs
+                        logger.info(f"Found {len(certs['CertificateSummaryList'])} Certificates")
+                except ClientError as e:
+                    logger.error(f"Error getting ACM resources: {str(e)}")
+
         except Exception as e:
-            logger.error(f"Error scanning {service_name} in {region}: {str(e)}")
+            logger.error(f"Error accessing {service_name} in {region}: {str(e)}")
             
         return resources
 
@@ -124,48 +162,103 @@ class AWSResourceInventory:
         console.print(f"\n[bold yellow]{service_name.upper()} Resources[/bold yellow]")
         
         for method_name, resource_data in resources.items():
-            if not resource_data:
-                continue
-            
-            # Get the main list of resources
-            items = []
-            if isinstance(resource_data, dict):
-                for key, value in resource_data.items():
-                    if isinstance(value, list) and value:
-                        items = value
-                        break
-            elif isinstance(resource_data, list):
-                items = resource_data
-                
-            if not items:
-                continue
-                
-            # Create table
-            title = method_name.replace('describe_', '').replace('list_', '').replace('_', ' ').upper()
-            table = Table(title=title, show_header=True)
-            
-            # Add columns based on resource type
-            if isinstance(items[0], dict):
-                columns = self._get_important_columns(service_name, method_name, items[0])
-                for col in columns:
-                    table.add_column(col.replace('_', ' ').title())
-                
-                # Add rows
-                for item in items:
-                    row = []
-                    for col in columns:
-                        value = item.get(col, 'N/A')
-                        if isinstance(value, dict) and 'Name' in value:
-                            value = value['Name']
-                        elif isinstance(value, (dict, list)):
-                            value = str(value)
-                        elif isinstance(value, bool):
-                            value = str(value)
-                        row.append(str(value))
-                    table.add_row(*row)
-                
+            # Handle EC2 instances
+            if method_name == 'describe_instances' and 'Reservations' in resource_data:
+                table = Table(title="EC2 INSTANCES")
+                table.add_column("Instance ID")
+                table.add_column("Name")
+                table.add_column("Type")
+                table.add_column("State")
+                table.add_column("Private IP")
+                table.add_column("Public IP")
+
+                for reservation in resource_data['Reservations']:
+                    for instance in reservation['Instances']:
+                        if instance['State']['Name'] != 'terminated':
+                            name = next((tag['Value'] for tag in instance.get('Tags', []) if tag['Key'] == 'Name'), 'N/A')
+                            table.add_row(
+                                instance['InstanceId'],
+                                name,
+                                instance['InstanceType'],
+                                instance['State']['Name'],
+                                instance.get('PrivateIpAddress', 'N/A'),
+                                instance.get('PublicIpAddress', 'N/A')
+                            )
                 console.print(table)
-                console.print("")
+
+            # Handle VPCs
+            elif method_name == 'describe_vpcs' and 'Vpcs' in resource_data:
+                table = Table(title="VPCs")
+                table.add_column("VPC ID")
+                table.add_column("CIDR Block")
+                table.add_column("Name")
+                table.add_column("State")
+
+                for vpc in resource_data['Vpcs']:
+                    name = next((tag['Value'] for tag in vpc.get('Tags', []) if tag['Key'] == 'Name'), 'N/A')
+                    table.add_row(
+                        vpc['VpcId'],
+                        vpc['CidrBlock'],
+                        name,
+                        vpc['State']
+                    )
+                console.print(table)
+
+            # Handle Subnets
+            elif method_name == 'describe_subnets' and 'Subnets' in resource_data:
+                table = Table(title="SUBNETS")
+                table.add_column("Subnet ID")
+                table.add_column("VPC ID")
+                table.add_column("CIDR Block")
+                table.add_column("AZ")
+                table.add_column("Name")
+
+                for subnet in resource_data['Subnets']:
+                    name = next((tag['Value'] for tag in subnet.get('Tags', []) if tag['Key'] == 'Name'), 'N/A')
+                    table.add_row(
+                        subnet['SubnetId'],
+                        subnet['VpcId'],
+                        subnet['CidrBlock'],
+                        subnet['AvailabilityZone'],
+                        name
+                    )
+                console.print(table)
+
+            # Handle Load Balancers
+            elif method_name == 'describe_load_balancers' and 'LoadBalancers' in resource_data:
+                table = Table(title="LOAD BALANCERS")
+                table.add_column("Name")
+                table.add_column("DNS Name")
+                table.add_column("Type")
+                table.add_column("Scheme")
+                table.add_column("State")
+
+                for lb in resource_data['LoadBalancers']:
+                    table.add_row(
+                        lb['LoadBalancerName'],
+                        lb['DNSName'],
+                        lb['Type'],
+                        lb['Scheme'],
+                        lb['State']['Code']
+                    )
+                console.print(table)
+
+            # Handle Security Groups
+            elif method_name == 'describe_security_groups' and 'SecurityGroups' in resource_data:
+                table = Table(title="SECURITY GROUPS")
+                table.add_column("Group ID")
+                table.add_column("Name")
+                table.add_column("VPC ID")
+                table.add_column("Description")
+
+                for sg in resource_data['SecurityGroups']:
+                    table.add_row(
+                        sg['GroupId'],
+                        sg['GroupName'],
+                        sg.get('VpcId', 'N/A'),
+                        sg['Description']
+                    )
+                console.print(table)
 
     def _get_important_columns(self, service_name: str, method_name: str, sample_item: Dict) -> List[str]:
         """Get important columns based on resource type"""
