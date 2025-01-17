@@ -56,7 +56,7 @@ module "dns" {
 module "acm" {
   source = "../../modules/acm"
   providers = {
-    aws = aws.us-east-1
+    aws.us-east-1 = aws.us-east-1
   }
   
   domain_name  = var.domain_name
@@ -70,13 +70,14 @@ module "acm" {
 # Loadbalancer module
 module "loadbalancer" {
   source = "../../modules/loadbalancer"
-
-  project_name      = var.project_name
-  security_group_id = module.security.security_group_id
-  public_subnet_ids = module.networking.public_subnet_ids
-  vpc_id            = module.networking.vpc_id
-  environment       = var.environment
-  certificate_arn   = module.acm.certificate_arn
+  
+  project_name    = var.project_name
+  environment     = var.environment
+  vpc_id          = module.networking.vpc_id
+  public_subnets  = module.networking.public_subnet_ids
+  security_groups = [module.security.alb_sg_id]
+  certificate_arn = module.acm.certificate_arn
+  environment     = var.environment
 
   depends_on = [module.acm]
 }
