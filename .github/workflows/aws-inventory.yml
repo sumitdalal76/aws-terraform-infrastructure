@@ -15,10 +15,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v2
+      uses: aws-actions/configure-aws-credentials@v4
       with:
         role-to-assume: arn:aws:iam::772102554033:role/github-terraform-role
         aws-region: ca-central-1
@@ -37,7 +37,7 @@ jobs:
       run: python scripts/aws_resource_inventory.py
 
     - name: Upload JSON Inventory
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: aws-inventory-json
         path: aws_inventory.json
