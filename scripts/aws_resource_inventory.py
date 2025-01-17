@@ -305,28 +305,37 @@ class AWSResourceInventory:
 
     def generate_inventory(self) -> Dict:
         """Generate complete inventory of AWS resources"""
-        console.print("\n[bold cyan]=== AWS Resource Inventory ===[/bold cyan]\n")
+        console.print("\n[bold cyan]=== AWS Resource Inventory ===[/bold cyan]")
         
         # Handle global services first
         global_services = ['iam', 'route53', 's3', 'cloudfront']
-        console.print("[bold green]Scanning Global Services...[/bold green]")
+        console.print("\n[bold green]Scanning Global Services...[/bold green]")
         
-        for service in self.services:
-            if service in global_services:
+        for service in global_services:
+            if service in self.services:
                 resources = self.get_resources(service)
                 if resources:
+                    console.print(f"\n[bold blue]Found {service.upper()} Resources:[/bold blue]")
                     self.print_resources(resources, service)
         
         # Handle regional services
         console.print("\n[bold green]Scanning Regional Services...[/bold green]")
-        for region in ['ca-central-1']:  # Focus on our primary region first
-            console.print(f"\n[bold blue]Region: {region}[/bold blue]")
-            
-            for service_name in self.services:
-                if service_name not in global_services:
-                    resources = self.get_resources(service_name, region)
-                    if resources:
-                        self.print_resources(resources, service_name)
+        
+        # Focus on ca-central-1
+        region = 'ca-central-1'
+        console.print(f"\n[bold blue]Region: {region}[/bold blue]")
+        
+        regional_services = [s for s in self.services if s not in global_services]
+        for service_name in regional_services:
+            resources = self.get_resources(service_name, region)
+            if resources:
+                console.print(f"\n[bold blue]Found {service_name.upper()} Resources:[/bold blue]")
+                self.print_resources(resources, service_name)
+                
+                # Store in inventory data
+                if region not in self.inventory_data:
+                    self.inventory_data[region] = {}
+                self.inventory_data[region][service_name] = resources
         
         return self.inventory_data
 
@@ -337,10 +346,10 @@ class AWSResourceInventory:
         logger.info(f"Inventory saved to {filename}")
 
 def main():
-    console.print("[bold cyan]Starting AWS Resource Inventory...[/bold cyan]\n")
+    console.print("[bold cyan]Starting AWS Resource Inventory...[/bold cyan]")
     try:
         inventory = AWSResourceInventory()
-        resources = inventory.generate_inventory()
+        inventory.generate_inventory()
         inventory.save_inventory()
         console.print("\n[bold cyan]AWS Resource Inventory Complete![/bold cyan]")
     except Exception as e:
