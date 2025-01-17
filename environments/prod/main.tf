@@ -49,6 +49,8 @@ module "dns" {
   project_name = var.project_name
   domain_name  = var.domain_name
   environment  = var.environment
+  alb_dns_name = ""  # Empty for initial zone creation
+  zone_id      = ""  # Empty for initial zone creation
 }
 
 # ACM module
