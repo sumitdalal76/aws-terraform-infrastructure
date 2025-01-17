@@ -54,31 +54,24 @@ class AWSResourceInventory:
         return regions
 
     def _discover_services(self) -> Dict:
-        """Automatically discover all AWS services"""
+        """Automatically discover AWS services"""
         services = {}
         
-        # Get all available AWS services
-        available_services = boto3.Session().get_available_services()
-        
-        # Common AWS services we're interested in
-        common_services = [
+        # Core AWS services we're interested in
+        core_services = [
             'ec2', 'elbv2', 'route53', 'acm', 'rds', 's3', 
             'lambda', 'cloudfront', 'dynamodb', 'iam'
         ]
         
-        # First check common services, then others
-        for service_name in sorted(available_services):
+        for service_name in core_services:
             try:
                 client = self.session.client(service_name)
-                logger.info(f"Testing {service_name} access...")
+                logger.info(f"Scanning {service_name} service...")
                 
-                # Get all available operations for the service
                 operations = client.meta.service_model.operation_names
-                
-                # Look for list/describe operations
                 list_operations = [
                     op for op in operations 
-                    if op.startswith(('list_', 'describe_')) 
+                    if op.startswith(('list_', 'describe_'))
                     and not op.endswith(('_tags', '_tag_keys', '_tag_values'))
                 ]
                 
@@ -87,10 +80,10 @@ class AWSResourceInventory:
                         'client': service_name,
                         'list_methods': list_operations
                     }
-                    logger.info(f"Added {service_name} with {len(list_operations)} methods")
+                    logger.info(f"Found {len(list_operations)} operations for {service_name}")
                     
             except (ClientError, botocore.exceptions.UnknownServiceError) as e:
-                logger.debug(f"Skipping {service_name}: {str(e)}")
+                logger.error(f"Error scanning {service_name}: {str(e)}")
                 continue
                 
         return services
@@ -101,7 +94,6 @@ class AWSResourceInventory:
         
         try:
             client = self.session.client(service_name, region_name=region)
-            logger.info(f"Checking {service_name} in {region or 'global'}")
             
             for method_name in self.services[service_name]['list_methods']:
                 try:
@@ -114,13 +106,13 @@ class AWSResourceInventory:
                     
                     if response and any(response.values()):
                         resources[method_name] = response
+                        logger.info(f"Found resources using {method_name}")
                         
                 except (ClientError, botocore.exceptions.ParamValidationError) as e:
-                    logger.debug(f"Skipping {method_name} for {service_name}: {str(e)}")
                     continue
                     
         except Exception as e:
-            logger.error(f"Error accessing {service_name} in {region}: {str(e)}")
+            logger.error(f"Error scanning {service_name} in {region}: {str(e)}")
             
         return resources
 
@@ -129,21 +121,17 @@ class AWSResourceInventory:
         if not resources:
             return
 
-        console.print(f"\n[bold blue]=== {service_name.upper()} Resources ===[/bold blue]")
+        console.print(f"\n[bold yellow]{service_name.upper()} Resources[/bold yellow]")
         
         for method_name, resource_data in resources.items():
             if not resource_data:
                 continue
             
-            # Create table title from method name
-            title = method_name.replace('describe_', '').replace('list_', '').replace('_', ' ').upper()
-            table = Table(title=title)
-            
-            # Extract the actual resource list
+            # Get the main list of resources
             items = []
             if isinstance(resource_data, dict):
                 for key, value in resource_data.items():
-                    if isinstance(value, list):
+                    if isinstance(value, list) and value:
                         items = value
                         break
             elif isinstance(resource_data, list):
@@ -152,12 +140,13 @@ class AWSResourceInventory:
             if not items:
                 continue
                 
-            # Get common attributes for the resource type
+            # Create table
+            title = method_name.replace('describe_', '').replace('list_', '').replace('_', ' ').upper()
+            table = Table(title=title, show_header=True)
+            
+            # Add columns based on resource type
             if isinstance(items[0], dict):
-                # Define important columns for each resource type
                 columns = self._get_important_columns(service_name, method_name, items[0])
-                
-                # Add columns to table
                 for col in columns:
                     table.add_column(col.replace('_', ' ').title())
                 
@@ -168,11 +157,13 @@ class AWSResourceInventory:
                         value = item.get(col, 'N/A')
                         if isinstance(value, dict) and 'Name' in value:
                             value = value['Name']
-                        elif isinstance(value, list):
-                            value = ', '.join([str(v) for v in value])
+                        elif isinstance(value, (dict, list)):
+                            value = str(value)
+                        elif isinstance(value, bool):
+                            value = str(value)
                         row.append(str(value))
                     table.add_row(*row)
-                    
+                
                 console.print(table)
                 console.print("")
 
@@ -223,32 +214,25 @@ class AWSResourceInventory:
         """Generate complete inventory of AWS resources"""
         console.print("\n[bold cyan]=== AWS Resource Inventory ===[/bold cyan]\n")
         
-        timestamp = datetime.now().isoformat()
-        self.inventory_data = {
-            'timestamp': timestamp,
-            'global_services': {},
-            'regions': {}
-        }
-        
         # Handle global services first
         global_services = ['iam', 'route53', 's3', 'cloudfront']
+        console.print("[bold green]Scanning Global Services...[/bold green]")
+        
         for service in self.services:
             if service in global_services:
                 resources = self.get_resources(service)
                 if resources:
-                    self.inventory_data['global_services'][service] = resources
                     self.print_resources(resources, service)
         
         # Handle regional services
-        for region in self.regions:
-            console.print(f"\n[bold green]Scanning region: {region}[/bold green]")
-            self.inventory_data['regions'][region] = {}
+        console.print("\n[bold green]Scanning Regional Services...[/bold green]")
+        for region in ['ca-central-1']:  # Focus on our primary region first
+            console.print(f"\n[bold blue]Region: {region}[/bold blue]")
             
             for service_name in self.services:
                 if service_name not in global_services:
                     resources = self.get_resources(service_name, region)
                     if resources:
-                        self.inventory_data['regions'][region][service_name] = resources
                         self.print_resources(resources, service_name)
         
         return self.inventory_data
@@ -263,14 +247,6 @@ def main():
     console.print("[bold cyan]Starting AWS Resource Inventory...[/bold cyan]\n")
     try:
         inventory = AWSResourceInventory()
-        
-        # Test specific region first
-        ca_central = inventory.get_resources('ec2', 'ca-central-1')
-        if ca_central:
-            console.print("[green]Successfully found resources in ca-central-1[/green]")
-            # Use the custom encoder when dumping to JSON
-            console.print(json.dumps(ca_central, indent=2, cls=DateTimeEncoder))
-        
         resources = inventory.generate_inventory()
         inventory.save_inventory()
         console.print("\n[bold cyan]AWS Resource Inventory Complete![/bold cyan]")
