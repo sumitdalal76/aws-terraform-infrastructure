@@ -31,23 +31,6 @@ def list_all_resources():
                 console.print(f"[bold green]Service: {service}[/bold green]")
 
                 if service == 'ec2':
-                    # EC2 Instances
-                    instances = client.describe_instances().get("Reservations", [])
-                    ec2_instances = [
-                        {
-                            "Region": region,
-                            "InstanceId": instance["InstanceId"],
-                            "State": instance["State"]["Name"],
-                            "Type": instance["InstanceType"],
-                            "PrivateIp": instance.get("PrivateIpAddress"),
-                            "PublicIp": instance.get("PublicIpAddress"),
-                        }
-                        for reservation in instances
-                        for instance in reservation["Instances"]
-                    ]
-                    if ec2_instances:
-                        all_resources.setdefault("ec2_instances", []).extend(ec2_instances)
-
                     # VPCs (Exclude default VPCs)
                     vpcs = client.describe_vpcs().get("Vpcs", [])
                     vpc_list = [
@@ -95,56 +78,37 @@ def list_all_resources():
                     if sg_list:
                         all_resources.setdefault("security_groups", []).extend(sg_list)
 
-                    # Elastic IPs
-                    eips = client.describe_addresses().get("Addresses", [])
-                    eip_list = [
+                elif service == 'acm':
+                    # ACM Certificates
+                    resources = client.list_certificates().get("CertificateSummaryList", [])
+                    certificates = [
+                        {"DomainName": cert["DomainName"], "Status": cert["Status"]}
+                        for cert in resources
+                    ]
+                    if certificates:
+                        all_resources.setdefault("acm_certificates", []).extend(certificates)
+
+                elif service == 'elbv2':
+                    # Load Balancers
+                    resources = client.describe_load_balancers().get("LoadBalancers", [])
+                    load_balancers = [
                         {
                             "Region": region,
-                            "PublicIp": eip["PublicIp"],
-                            "InstanceId": eip.get("InstanceId", "N/A"),
-                            "AllocationId": eip.get("AllocationId", "N/A"),
+                            "Name": lb["LoadBalancerName"],
+                            "DNSName": lb["DNSName"],
+                            "Type": lb["Type"],
                         }
-                        for eip in eips
+                        for lb in resources
                     ]
-                    if eip_list:
-                        all_resources.setdefault("elastic_ips", []).extend(eip_list)
+                    if load_balancers:
+                        all_resources.setdefault("load_balancers", []).extend(load_balancers)
 
-                elif service == 's3':
+                elif service == 's3' and region == 'us-east-1':
                     # S3 Buckets (Global Service)
-                    if region == 'us-east-1':  # Only list S3 once since it's global
-                        buckets = client.list_buckets()["Buckets"]
-                        bucket_list = [{"BucketName": bucket["Name"]} for bucket in buckets]
-                        if bucket_list:
-                            all_resources.setdefault("s3_buckets", []).extend(bucket_list)
-
-                elif service == 'rds':
-                    # RDS Instances
-                    rds_instances = client.describe_db_instances().get("DBInstances", [])
-                    rds_list = [
-                        {
-                            "Region": region,
-                            "DBInstanceIdentifier": db["DBInstanceIdentifier"],
-                            "Engine": db["Engine"],
-                            "Status": db["DBInstanceStatus"],
-                        }
-                        for db in rds_instances
-                    ]
-                    if rds_list:
-                        all_resources.setdefault("rds_instances", []).extend(rds_list)
-
-                elif service == 'lambda':
-                    # Lambda Functions
-                    functions = client.list_functions().get("Functions", [])
-                    lambda_functions = [
-                        {
-                            "Region": region,
-                            "FunctionName": function["FunctionName"],
-                            "Runtime": function["Runtime"],
-                        }
-                        for function in functions
-                    ]
-                    if lambda_functions:
-                        all_resources.setdefault("lambda_functions", []).extend(lambda_functions)
+                    buckets = client.list_buckets().get("Buckets", [])
+                    bucket_list = [{"BucketName": bucket["Name"]} for bucket in buckets]
+                    if bucket_list:
+                        all_resources.setdefault("s3_buckets", []).extend(bucket_list)
 
                 elif service == 'route53' and region == 'us-east-1':
                     # Route53 Hosted Zones (Global Service)
@@ -166,7 +130,8 @@ def list_all_resources():
 
     # Print consolidated tables
     for resource_type, items in all_resources.items():
-        print_table(resource_type.replace("_", " ").title(), items)
+        if items:  # Only print if items exist
+            print_table(resource_type.replace("_", " ").title(), items)
 
     # Save inventory to JSON
     with open("aws_all_resources.json", "w") as f:
