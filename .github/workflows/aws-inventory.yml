@@ -1,0 +1,44 @@
+name: 'AWS Resource Inventory'
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * *'  # Run daily at midnight UTC
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  inventory:
+    name: 'Generate Inventory'
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        role-to-assume: arn:aws:iam::772102554033:role/github-terraform-role
+        aws-region: ca-central-1
+
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r scripts/requirements.txt
+
+    - name: Run Resource Inventory
+      run: python scripts/aws_resource_inventory.py
+
+    - name: Upload JSON Inventory
+      uses: actions/upload-artifact@v3
+      with:
+        name: aws-inventory-json
+        path: aws_inventory.json
+        retention-days: 7

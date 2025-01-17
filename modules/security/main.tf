@@ -1,10 +1,9 @@
-resource "aws_security_group" "alb" {
-  name        = "${var.environment}-alb-sg"
-  description = "Security group for ALB"
-  vpc_id      = aws_vpc.main.id
+resource "aws_security_group" "web" {
+  name        = "${var.project_name}-web-sg"
+  description = "Security group for web traffic"
+  vpc_id      = var.vpc_id
 
   ingress {
-    description = "HTTP from Internet"
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
@@ -12,7 +11,6 @@ resource "aws_security_group" "alb" {
   }
 
   ingress {
-    description = "HTTPS from Internet"
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
@@ -27,7 +25,6 @@ resource "aws_security_group" "alb" {
   }
 
   tags = {
-    Name        = "${var.environment}-alb-sg"
-    Environment = var.environment
+    Name = "${var.project_name}-web-sg"
   }
-} 
+}
