@@ -11,24 +11,27 @@ console = Console()
 def list_all_resources():
     session = boto3.Session()
     ec2_client = session.client('ec2')
+
+    # Get all regions
     regions = [region['RegionName'] for region in ec2_client.describe_regions()['Regions']]
+    console.print(f"[bold cyan]Scanning resources for all regions: {', '.join(regions)}[/bold cyan]")
 
     # Supported services
     services = [
         'ec2', 's3', 'rds', 'lambda', 'dynamodb', 'elbv2', 'cloudfront', 'route53',
         'acm', 'sns', 'sqs', 'eks', 'ecr', 'cloudwatch'
     ]
+    console.print(f"[bold cyan]Scanning for all services: {', '.join(services)}[/bold cyan]")
 
     all_resources = {}
 
     for region in regions:
-        console.print(f"[bold cyan]Scanning region: {region}[/bold cyan]")
+        console.print(f"\n[bold green]Scanning region: {region}[/bold green]")
         all_resources[region] = {}
 
         for service in services:
             try:
                 client = session.client(service, region_name=region)
-                console.print(f"[bold green]Service: {service}[/bold green]")
 
                 if service == 'ec2':
                     # VPCs (Exclude default VPCs)
@@ -82,7 +85,7 @@ def list_all_resources():
                     # ACM Certificates
                     resources = client.list_certificates().get("CertificateSummaryList", [])
                     certificates = [
-                        {"DomainName": cert["DomainName"], "Status": cert["Status"]}
+                        {"DomainName": cert["DomainName"], "Status": cert["Status"], "Region": region}
                         for cert in resources
                     ]
                     if certificates:
@@ -106,21 +109,21 @@ def list_all_resources():
                 elif service == 's3' and region == 'us-east-1':
                     # S3 Buckets (Global Service)
                     buckets = client.list_buckets().get("Buckets", [])
-                    bucket_list = [{"BucketName": bucket["Name"]} for bucket in buckets]
+                    bucket_list = [{"BucketName": bucket["Name"], "Region": "Global"} for bucket in buckets]
                     if bucket_list:
                         all_resources.setdefault("s3_buckets", []).extend(bucket_list)
 
                 elif service == 'route53' and region == 'us-east-1':
                     # Route53 Hosted Zones (Global Service)
                     hosted_zones = client.list_hosted_zones().get("HostedZones", [])
-                    route53_zones = [{"Id": zone["Id"], "Name": zone["Name"]} for zone in hosted_zones]
+                    route53_zones = [{"Id": zone["Id"], "Name": zone["Name"], "Region": "Global"} for zone in hosted_zones]
                     if route53_zones:
                         all_resources.setdefault("route53_zones", []).extend(route53_zones)
 
                 elif service == 'cloudfront' and region == 'us-east-1':
                     # CloudFront (Global Service)
                     distributions = client.list_distributions().get("DistributionList", {}).get("Items", [])
-                    cloudfront_dist = [{"Id": d["Id"], "DomainName": d["DomainName"]} for d in distributions]
+                    cloudfront_dist = [{"Id": d["Id"], "DomainName": d["DomainName"], "Region": "Global"} for d in distributions]
                     if cloudfront_dist:
                         all_resources.setdefault("cloudfront_distributions", []).extend(cloudfront_dist)
 
