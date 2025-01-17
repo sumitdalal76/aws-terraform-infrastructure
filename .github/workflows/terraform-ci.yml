@@ -43,7 +43,7 @@ jobs:
 
     - name: Terraform Plan
       if: github.event_name == 'pull_request'
-      run: terraform plan -var-file=terraform.tfvars -no-color
+      run: terraform plan -var-file=terraform.tfvars
 
     - name: Terraform Apply
       if: github.event_name == 'push' && github.ref == 'refs/heads/main'
