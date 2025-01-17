@@ -3,6 +3,11 @@ variable "project_name" {
   type        = string
 }
 
+variable "vpc_id" {
+  description = "ID of the VPC"
+  type        = string
+}
+
 variable "security_group_id" {
   description = "ID of the security group"
   type        = string
