@@ -117,6 +117,7 @@ Create security groups with the following rules:
 - Inbound Rules:
   - HTTP (80) from 0.0.0.0/0
   - HTTPS (443) from 0.0.0.0/0
+  - ⏸️ HTTPS Listener (Port 443) - *Commented out, requires SSL certificate*
 - Outbound Rules:
   - All traffic to 0.0.0.0/0
 
@@ -138,6 +139,37 @@ Create security groups with the following rules:
    - Protocol: HTTP
    - Port: 80
    - Default Action: Forward to target group
+
+### **DNS Configuration**
+- ⏸️ Public Route53 hosted zone and CNAME entry for the ELB - *Commented out*
+
+## **Note on DNS and HTTPS Implementation**
+
+The following components are currently commented out in the code:
+
+1. **Route53 and CNAME Configuration**
+   - Requirements: "Public route53 hosted zone and CNAME entry for the ELB"
+   - Status: Commented out
+   - Reason: Requires a registered domain name
+   - Files affected:
+     - `modules/dns/main.tf`
+
+2. **HTTPS Listener**
+   - Status: Commented out
+   - Reason: Requires SSL certificate
+   - Files affected:
+     - `modules/loadbalancer/main.tf`
+
+### To Enable DNS and HTTPS
+
+To implement these features, you will need:
+1. A registered domain name
+2. An SSL certificate from AWS Certificate Manager (ACM)
+
+Once you have these prerequisites:
+1. Uncomment the Route53 configuration in `modules/dns/main.tf`
+2. Uncomment the HTTPS listener in `modules/loadbalancer/main.tf`
+3. Update the domain name and certificate ARN in your terraform.tfvars file
 
 ## **GitHub Actions Workflows**
 
