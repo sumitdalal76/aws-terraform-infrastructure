@@ -18,6 +18,12 @@ provider "aws" {
   region = var.aws_region
 }
 
+# Provider for us-east-1 (required for ACM certificates used with ALB)
+provider "aws" {
+  alias  = "us-east-1"
+  region = "us-east-1"
+}
+
 module "networking" {
   source = "../../modules/networking"
 
@@ -49,6 +55,9 @@ module "dns" {
 # ACM module
 module "acm" {
   source = "../../modules/acm"
+  providers = {
+    aws = aws.us-east-1
+  }
   
   domain_name  = var.domain_name
   project_name = var.project_name
