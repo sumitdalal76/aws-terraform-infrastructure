@@ -54,27 +54,32 @@ class AWSResourceInventory:
         return regions
 
     def _discover_services(self) -> Dict:
-        """Discover AWS services with explicit error handling"""
+        """Automatically discover all AWS services"""
         services = {}
-        core_services = ['ec2', 'elasticloadbalancingv2', 'route53', 'acm']
         
-        for service_name in core_services:
+        # Get all available AWS services
+        available_services = boto3.Session().get_available_services()
+        
+        # Common AWS services we're interested in
+        common_services = [
+            'ec2', 'elbv2', 'route53', 'acm', 'rds', 's3', 
+            'lambda', 'cloudfront', 'dynamodb', 'iam'
+        ]
+        
+        # First check common services, then others
+        for service_name in sorted(available_services):
             try:
                 client = self.session.client(service_name)
                 logger.info(f"Testing {service_name} access...")
                 
-                # Test specific service access
-                if service_name == 'ec2':
-                    vpcs = client.describe_vpcs()
-                    logger.info(f"EC2 access successful - Found {len(vpcs['Vpcs'])} VPCs")
-                elif service_name == 'elasticloadbalancingv2':
-                    lbs = client.describe_load_balancers()
-                    logger.info(f"ELB access successful - Found {len(lbs['LoadBalancers'])} Load Balancers")
-                
+                # Get all available operations for the service
                 operations = client.meta.service_model.operation_names
+                
+                # Look for list/describe operations
                 list_operations = [
                     op for op in operations 
-                    if op.startswith(('list_', 'describe_'))
+                    if op.startswith(('list_', 'describe_')) 
+                    and not op.endswith(('_tags', '_tag_keys', '_tag_values'))
                 ]
                 
                 if list_operations:
@@ -84,169 +89,135 @@ class AWSResourceInventory:
                     }
                     logger.info(f"Added {service_name} with {len(list_operations)} methods")
                     
-            except ClientError as e:
-                logger.error(f"Error accessing {service_name}: {e.response['Error']['Message']}")
-            except Exception as e:
-                logger.error(f"Unexpected error with {service_name}: {str(e)}")
-        
+            except (ClientError, botocore.exceptions.UnknownServiceError) as e:
+                logger.debug(f"Skipping {service_name}: {str(e)}")
+                continue
+                
         return services
 
     def get_resources(self, service_name: str, region: str = None) -> Dict[str, List]:
-        """Get resources with detailed error handling"""
+        """Get resources for a service"""
         resources = {}
+        
         try:
             client = self.session.client(service_name, region_name=region)
             logger.info(f"Checking {service_name} in {region or 'global'}")
             
-            if service_name == 'ec2':
-                # Explicitly check EC2 resources
-                vpcs = client.describe_vpcs()
-                instances = client.describe_instances()
-                logger.info(f"Found {len(vpcs['Vpcs'])} VPCs and {len(instances['Reservations'])} EC2 reservations")
-                if vpcs['Vpcs']:
-                    resources['describe_vpcs'] = vpcs
-                if instances['Reservations']:
-                    resources['describe_instances'] = instances
+            for method_name in self.services[service_name]['list_methods']:
+                try:
+                    method = getattr(client, method_name)
+                    response = method()
                     
-            elif service_name == 'elasticloadbalancingv2':
-                # Explicitly check ELB resources
-                lbs = client.describe_load_balancers()
-                if lbs['LoadBalancers']:
-                    resources['describe_load_balancers'] = lbs
+                    # Remove response metadata
+                    if isinstance(response, dict):
+                        response.pop('ResponseMetadata', None)
                     
-        except ClientError as e:
-            logger.error(f"Error getting {service_name} resources in {region}: {e.response['Error']['Message']}")
+                    if response and any(response.values()):
+                        resources[method_name] = response
+                        
+                except (ClientError, botocore.exceptions.ParamValidationError) as e:
+                    logger.debug(f"Skipping {method_name} for {service_name}: {str(e)}")
+                    continue
+                    
         except Exception as e:
-            logger.error(f"Unexpected error with {service_name} in {region}: {str(e)}")
+            logger.error(f"Error accessing {service_name} in {region}: {str(e)}")
             
         return resources
 
-    def _filter_active_resources(self, service_name: str, method_name: str, response: Dict) -> Dict:
-        """Filter only active/used resources"""
-        if not response:
-            return None
-
-        # Handle specific service responses
-        if service_name == 'ec2':
-            if method_name == 'describe_instances':
-                active_instances = []
-                for reservation in response.get('Reservations', []):
-                    for instance in reservation.get('Instances', []):
-                        # Only include running or stopped instances
-                        if instance['State']['Name'] not in ['terminated', 'shutting-down']:
-                            active_instances.append(instance)
-                if active_instances:
-                    return {'Reservations': [{'Instances': active_instances}]}
-            
-            elif method_name == 'describe_vpcs':
-                # Filter out default VPCs
-                active_vpcs = [
-                    vpc for vpc in response.get('Vpcs', [])
-                    if not vpc.get('IsDefault', False)
-                ]
-                if active_vpcs:
-                    return {'Vpcs': active_vpcs}
-
-        elif service_name == 'rds':
-            if method_name == 'describe_db_instances':
-                # Only include active DB instances
-                active_dbs = [
-                    db for db in response.get('DBInstances', [])
-                    if db['DBInstanceStatus'] not in ['deleted', 'deleting']
-                ]
-                if active_dbs:
-                    return {'DBInstances': active_dbs}
-
-        elif service_name == 's3':
-            if method_name == 'list_buckets':
-                # Only include non-empty buckets
-                active_buckets = []
-                for bucket in response.get('Buckets', []):
-                    try:
-                        s3_client = self.session.client('s3')
-                        objects = s3_client.list_objects_v2(
-                            Bucket=bucket['Name'],
-                            MaxKeys=1
-                        )
-                        if objects.get('Contents'):
-                            active_buckets.append(bucket)
-                    except ClientError:
-                        continue
-                if active_buckets:
-                    return {'Buckets': active_buckets}
-
-        elif service_name == 'lambda':
-            if method_name == 'list_functions':
-                # Only include active functions
-                active_functions = [
-                    func for func in response.get('Functions', [])
-                    if func.get('State') != 'Inactive'
-                ]
-                if active_functions:
-                    return {'Functions': active_functions}
-
-        # For other services, check if there's any data
-        for key, value in response.items():
-            if isinstance(value, list) and value:
-                return response
-            elif isinstance(value, dict) and value:
-                return response
-
-        return None
-
     def print_resources(self, resources: Dict, service_name: str):
-        """Print only non-empty resource tables"""
+        """Print resources in a clean table format"""
         if not resources:
             return
 
+        console.print(f"\n[bold blue]=== {service_name.upper()} Resources ===[/bold blue]")
+        
         for method_name, resource_data in resources.items():
             if not resource_data:
                 continue
-
-            console.print(f"\n[bold green]=== {service_name.upper()} Resources ===[/bold green]")
             
-            if method_name == 'describe_vpcs':
-                table = Table(title="VPCs")
-                table.add_column("VPC ID")
-                table.add_column("CIDR Block")
-                table.add_column("Name")
-                table.add_column("Is Default")
-                table.add_column("State")
-
-                for vpc in resource_data['Vpcs']:
-                    if not vpc.get('IsDefault', False):  # Skip default VPCs
-                        name = next((tag['Value'] for tag in vpc.get('Tags', []) if tag['Key'] == 'Name'), 'N/A')
-                        table.add_row(
-                            vpc['VpcId'],
-                            vpc['CidrBlock'],
-                            name,
-                            str(vpc.get('IsDefault', False)),
-                            vpc['State']
-                        )
+            # Create table title from method name
+            title = method_name.replace('describe_', '').replace('list_', '').replace('_', ' ').upper()
+            table = Table(title=title)
+            
+            # Extract the actual resource list
+            items = []
+            if isinstance(resource_data, dict):
+                for key, value in resource_data.items():
+                    if isinstance(value, list):
+                        items = value
+                        break
+            elif isinstance(resource_data, list):
+                items = resource_data
+                
+            if not items:
+                continue
+                
+            # Get common attributes for the resource type
+            if isinstance(items[0], dict):
+                # Define important columns for each resource type
+                columns = self._get_important_columns(service_name, method_name, items[0])
+                
+                # Add columns to table
+                for col in columns:
+                    table.add_column(col.replace('_', ' ').title())
+                
+                # Add rows
+                for item in items:
+                    row = []
+                    for col in columns:
+                        value = item.get(col, 'N/A')
+                        if isinstance(value, dict) and 'Name' in value:
+                            value = value['Name']
+                        elif isinstance(value, list):
+                            value = ', '.join([str(v) for v in value])
+                        row.append(str(value))
+                    table.add_row(*row)
+                    
                 console.print(table)
+                console.print("")
 
-            elif method_name == 'describe_instances':
-                table = Table(title="EC2 Instances")
-                table.add_column("Instance ID")
-                table.add_column("Name")
-                table.add_column("Type")
-                table.add_column("State")
-                table.add_column("Private IP")
-                table.add_column("Public IP")
-
-                for reservation in resource_data['Reservations']:
-                    for instance in reservation['Instances']:
-                        if instance['State']['Name'] != 'terminated':  # Skip terminated instances
-                            name = next((tag['Value'] for tag in instance.get('Tags', []) if tag['Key'] == 'Name'), 'N/A')
-                            table.add_row(
-                                instance['InstanceId'],
-                                name,
-                                instance['InstanceType'],
-                                instance['State']['Name'],
-                                instance.get('PrivateIpAddress', 'N/A'),
-                                instance.get('PublicIpAddress', 'N/A')
-                            )
-                console.print(table)
+    def _get_important_columns(self, service_name: str, method_name: str, sample_item: Dict) -> List[str]:
+        """Get important columns based on resource type"""
+        common_columns = ['Id', 'Name', 'Arn', 'State', 'Type']
+        specific_columns = {
+            'ec2': {
+                'describe_instances': ['InstanceId', 'InstanceType', 'State', 'PrivateIpAddress', 'PublicIpAddress'],
+                'describe_vpcs': ['VpcId', 'CidrBlock', 'State', 'IsDefault'],
+                'describe_subnets': ['SubnetId', 'VpcId', 'CidrBlock', 'AvailabilityZone', 'State'],
+                'describe_security_groups': ['GroupId', 'GroupName', 'VpcId', 'Description']
+            },
+            'elbv2': {
+                'describe_load_balancers': ['LoadBalancerArn', 'DNSName', 'State', 'Type', 'Scheme']
+            },
+            'route53': {
+                'list_hosted_zones': ['Id', 'Name', 'Config']
+            },
+            'acm': {
+                'list_certificates': ['CertificateArn', 'DomainName', 'Status']
+            }
+        }
+        
+        # Get specific columns if defined
+        if service_name in specific_columns and method_name in specific_columns[service_name]:
+            return specific_columns[service_name][method_name]
+        
+        # Otherwise, use available columns that match common patterns
+        available_columns = list(sample_item.keys())
+        selected_columns = []
+        
+        # First add common columns if they exist
+        for col in common_columns:
+            matching_cols = [c for c in available_columns if col.lower() in c.lower()]
+            if matching_cols:
+                selected_columns.extend(matching_cols)
+        
+        # Then add any remaining important-looking columns
+        for col in available_columns:
+            if any(term in col.lower() for term in ['name', 'id', 'arn', 'state', 'type']):
+                if col not in selected_columns:
+                    selected_columns.append(col)
+        
+        return selected_columns[:6]  # Limit to 6 columns for readability
 
     def generate_inventory(self) -> Dict:
         """Generate complete inventory of AWS resources"""
@@ -255,19 +226,30 @@ class AWSResourceInventory:
         timestamp = datetime.now().isoformat()
         self.inventory_data = {
             'timestamp': timestamp,
+            'global_services': {},
             'regions': {}
         }
         
-        # Focus on ca-central-1 first
-        region = 'ca-central-1'
-        console.print(f"\n[bold blue]Scanning region: {region}[/bold blue]")
+        # Handle global services first
+        global_services = ['iam', 'route53', 's3', 'cloudfront']
+        for service in self.services:
+            if service in global_services:
+                resources = self.get_resources(service)
+                if resources:
+                    self.inventory_data['global_services'][service] = resources
+                    self.print_resources(resources, service)
         
-        resources = self.get_resources('ec2', region)
-        if resources:
-            self.inventory_data['regions'][region] = resources
-            self.print_resources(resources, 'ec2')
-        
-        # Add other services as needed
+        # Handle regional services
+        for region in self.regions:
+            console.print(f"\n[bold green]Scanning region: {region}[/bold green]")
+            self.inventory_data['regions'][region] = {}
+            
+            for service_name in self.services:
+                if service_name not in global_services:
+                    resources = self.get_resources(service_name, region)
+                    if resources:
+                        self.inventory_data['regions'][region][service_name] = resources
+                        self.print_resources(resources, service_name)
         
         return self.inventory_data
 
