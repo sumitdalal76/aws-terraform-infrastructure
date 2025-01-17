@@ -53,3 +53,8 @@ variable "porkbun_secret_key" {
   description = "Porkbun Secret API key"
   type        = string
 }
+
+variable "apex_domain" {
+  description = "The apex/root domain (e.g., devopslab.buzz)"
+  type        = string
+}

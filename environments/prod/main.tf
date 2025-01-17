@@ -41,6 +41,7 @@ module "dns" {
   source = "../../modules/dns"
 
   project_name = var.project_name
+  apex_domain  = var.apex_domain
   domain_name  = var.domain_name
   environment  = var.environment
 }
@@ -108,7 +109,7 @@ resource "null_resource" "update_nameservers" {
   }
 
   provisioner "local-exec" {
-    command = "python3 ../../scripts/update_nameservers.py ${var.domain_name} ${var.porkbun_api_key} ${var.porkbun_secret_key} ${join(" ", data.aws_route53_zone.selected.name_servers)}"
+    command = "python3 ../../scripts/update_nameservers.py ${var.apex_domain} ${var.porkbun_api_key} ${var.porkbun_secret_key} ${join(" ", data.aws_route53_zone.selected.name_servers)}"
   }
 
   depends_on = [module.dns]

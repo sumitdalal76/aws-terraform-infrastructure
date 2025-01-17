@@ -3,7 +3,7 @@ variable "project_name" {
   type        = string
 }
 
-variable "domain_name" {
+variable "apex_domain" {
   description = "Domain name for the hosted zone"
   type        = string
 }
