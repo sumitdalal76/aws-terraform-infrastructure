@@ -36,6 +36,32 @@ module "security" {
   vpc_id       = module.networking.vpc_id
 }
 
+# DNS module
+module "dns" {
+  source = "../../modules/dns"
+
+  project_name  = var.project_name
+  domain_name   = var.domain_name
+  alb_dns_name  = module.loadbalancer.alb_dns_name
+  environment   = var.environment
+}
+
+# ACM module
+module "acm" {
+  source = "./modules/acm"
+  providers = {
+    aws.us-east-1 = aws.us-east-1
+  }
+
+  domain_name  = var.domain_name
+  project_name = var.project_name
+  environment  = var.environment
+  zone_id      = module.dns.zone_id
+
+  depends_on = [module.dns]
+}
+
+# Loadbalancer module
 module "loadbalancer" {
   source = "../../modules/loadbalancer"
 
@@ -44,14 +70,18 @@ module "loadbalancer" {
   public_subnet_ids = module.networking.public_subnet_ids
   vpc_id            = module.networking.vpc_id
   environment       = var.environment
-#  certificate_arn   = var.certificate_arn
+  certificate_arn   = var.certificate_arn
 }
 
-#module "dns" {
-#  source = "../../modules/dns"
+module "ec2" {
+  source = "./modules/ec2"
 
-#  project_name  = var.project_name
-#  domain_name   = var.domain_name
-#  alb_dns_name  = module.loadbalancer.alb_dns_name
-#  environment   = var.environment
-#}
+  project_name      = var.project_name
+  environment       = var.environment
+  ami_id           = var.ami_id  # Ubuntu 20.04 AMI ID
+  subnet_id        = module.networking.public_subnet_ids[0]  # First public subnet
+  security_group_id = module.security.web_sg_id
+  target_group_arn = module.loadbalancer.target_group_arn
+
+  depends_on = [module.networking, module.security, module.loadbalancer]
+}

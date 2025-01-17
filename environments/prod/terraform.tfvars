@@ -11,6 +11,5 @@ private_subnet_cidrs = [
   "10.0.4.0/24"
 ]
 
-# Domain and certificate variables are commented out for testing
-# domain_name = ""
-# certificate_arn = "" 
+domain_name = "myapp-prod.com"
+ami_id = "ami-0ea18256de20ecdfc"  # Ubuntu 20.04 LTS in ca-central-1
