@@ -1,6 +1,6 @@
 # **AWS Infrastructure Deployment with Terraform**
 
-<img src="ArchitectureDiagram/architecture.png" alt="AWS Infrastructure Architecture" width="800"/>
+<img src="screenshots/architecture.png" alt="AWS Infrastructure Architecture" width="800"/>
 
 ## Overview
 Infrastructure as Code (IaC) for AWS using Terraform modules and GitHub Actions CI/CD pipelines.
@@ -62,7 +62,7 @@ Infrastructure as Code (IaC) for AWS using Terraform modules and GitHub Actions 
 ## Results
 
 ### Infrastructure Output
-<img src="ArchitectureDiagram/output.png" alt="Terraform Output" width="800"/>
+![Terraform Output](screenshots/output.png)
 
 ### Access Points
 - HTTPS: https://myapp-prod.devopslab.buzz
