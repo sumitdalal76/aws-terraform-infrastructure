@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 import boto3
-from botocore.exceptions import ClientError
+from botocore.exceptions import ClientError, EndpointConnectionError
 from rich.console import Console
 from rich.table import Table
 import json
+import os
 
 # Initialize console for table output
 console = Console()
@@ -12,13 +13,21 @@ def list_all_resources():
     session = boto3.Session()
     ec2_client = session.client("ec2")
 
-    # Get all AWS regions
-    regions = [region["RegionName"] for region in ec2_client.describe_regions()["Regions"]]
-    console.print(f"[bold cyan]Scanning resources for all regions: {', '.join(regions)}[/bold cyan]")
+    try:
+        # Get all AWS regions
+        regions = [region["RegionName"] for region in ec2_client.describe_regions()["Regions"]]
+        console.print(f"[bold cyan]Scanning resources for all regions: {', '.join(regions)}[/bold cyan]")
+    except ClientError as e:
+        console.print(f"[bold red]Error fetching regions: {e}[/bold red]")
+        return
 
-    # Get all available AWS services dynamically
-    available_services = session.get_available_services()
-    console.print(f"[bold cyan]Scanning for all services: {', '.join(available_services)}[/bold cyan]")
+    try:
+        # Get all available AWS services dynamically
+        available_services = session.get_available_services()
+        console.print(f"[bold cyan]Scanning for all services: {', '.join(available_services)}[/bold cyan]")
+    except ClientError as e:
+        console.print(f"[bold red]Error fetching available services: {e}[/bold red]")
+        return
 
     all_resources = {}
 
@@ -50,9 +59,13 @@ def list_all_resources():
                             all_resources.setdefault(service, []).extend(formatted_resources)
 
                     except ClientError as e:
-                        console.print(f"[bold yellow]No permissions or empty response for {operation} in {service}[/bold yellow]")
+                        error_code = e.response['Error']['Code']
+                        console.print(f"[bold yellow]Permission issue or empty response for {operation} in {service}: {error_code}[/bold yellow]")
                         continue
-            except ClientError as e:
+                    except Exception as e:
+                        console.print(f"[bold red]Error during operation {operation} in {service}: {e}[/bold red]")
+                        continue
+            except (ClientError, EndpointConnectionError) as e:
                 console.print(f"[bold red]Error initializing client for {service} in {region}: {e}[/bold red]")
                 continue
 
@@ -62,9 +75,17 @@ def list_all_resources():
             print_table(service.title(), items)
 
     # Save inventory to JSON
-    with open("aws_all_resources.json", "w") as f:
-        json.dump(all_resources, f, indent=4)
-    console.print("[bold cyan]Inventory saved to aws_all_resources.json[/bold cyan]")
+    output_file = "aws_all_resources.json"
+    if all_resources:
+        with open(output_file, "w") as f:
+            json.dump(all_resources, f, indent=4)
+        console.print(f"[bold cyan]Inventory saved to {output_file}[/bold cyan]")
+    else:
+        console.print("[bold yellow]No resources found. Nothing to save to file.[/bold yellow]")
+
+    # Ensure artifact exists for upload
+    if not os.path.exists(output_file):
+        console.print(f"[bold red]Warning: {output_file} not found. No artifacts will be uploaded.[/bold red]")
 
 def flatten_dict(d, parent_key='', sep='_'):
     """
