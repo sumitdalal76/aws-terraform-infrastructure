@@ -43,3 +43,13 @@ variable "ami_id" {
   description = "AMI ID for EC2 instances"
   type        = string
 }
+
+variable "porkbun_api_key" {
+  description = "Porkbun API key"
+  type        = string
+}
+
+variable "porkbun_secret_key" {
+  description = "Porkbun Secret API key"
+  type        = string
+}

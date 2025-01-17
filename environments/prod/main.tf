@@ -103,3 +103,22 @@ module "ec2" {
 
   depends_on = [module.networking, module.security, module.loadbalancer]
 }
+
+# Get nameservers after zone creation
+data "aws_route53_zone" "selected" {
+  name = var.domain_name
+  depends_on = [module.dns]
+}
+
+# Automate nameserver update
+resource "null_resource" "update_nameservers" {
+  triggers = {
+    zone_id = module.dns.zone_id
+  }
+
+  provisioner "local-exec" {
+    command = "python3 ../../scripts/update_nameservers.py ${var.domain_name} ${var.porkbun_api_key} ${var.porkbun_secret_key} ${join(" ", data.aws_route53_zone.selected.name_servers)}"
+  }
+
+  depends_on = [module.dns]
+}
