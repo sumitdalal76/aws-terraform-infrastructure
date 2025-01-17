@@ -71,12 +71,12 @@ module "acm" {
 module "loadbalancer" {
   source = "../../modules/loadbalancer"
   
-  project_name    = var.project_name
-  environment     = var.environment
-  vpc_id          = module.networking.vpc_id
-  public_subnets  = module.networking.public_subnet_ids
-  security_groups = [module.security.alb_sg_id]
-  certificate_arn = module.acm.certificate_arn
+  project_name      = var.project_name
+  environment       = var.environment
+  vpc_id           = module.networking.vpc_id
+  public_subnet_ids = module.networking.public_subnet_ids
+  security_group_id = module.security.alb_sg_id
+  certificate_arn   = module.acm.certificate_arn
 
   depends_on = [module.acm]
 }

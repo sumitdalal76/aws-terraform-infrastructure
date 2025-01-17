@@ -3,28 +3,27 @@ variable "project_name" {
   type        = string
 }
 
-variable "vpc_id" {
-  description = "ID of the VPC"
+variable "environment" {
+  description = "Environment name for resource tagging"
   type        = string
 }
 
-variable "environment" {
-  description = "Environment (e.g., prod, dev, staging)"
+variable "vpc_id" {
+  description = "VPC ID where the load balancer will be created"
   type        = string
-  default     = "prod"
 }
 
 variable "security_group_id" {
-  description = "ID of the security group"
+  description = "Security group ID for the load balancer"
   type        = string
 }
 
 variable "public_subnet_ids" {
-  description = "IDs of public subnets"
+  description = "List of public subnet IDs for the load balancer"
   type        = list(string)
 }
 
 variable "certificate_arn" {
-  description = "ARN of SSL certificate"
+  description = "ARN of SSL certificate for HTTPS listener"
   type        = string
 }
