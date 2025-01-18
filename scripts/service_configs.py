@@ -25,7 +25,7 @@ SERVICE_CONFIGS = {
             "aws", "ec2", "describe-vpcs",
             "--region", region,
             "--output", "text",
-            "--query", "Vpcs[].[VpcId,CidrBlock,State]"
+            "--query", "Vpcs[?IsDefault==`false`].[VpcId,CidrBlock,State]"
         ]
     }
     # Add more services here
