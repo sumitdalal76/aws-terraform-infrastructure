@@ -108,10 +108,5 @@ AWS_COMMANDS = {
         'command': lambda region: ["aws", "acm", "list-certificates", "--region", region, "--query", "CertificateSummaryList[].[CertificateArn,DomainName,Status]", "--output", "text"],
         'regional': True,
         'columns': ['Region', 'Certificate ARN', 'Domain Name', 'Status']
-    },
-    'cloudwatch': {
-        'command': lambda region: ["aws", "cloudwatch", "list-metrics", "--region", region, "--query", "Metrics[].[Namespace,MetricName]", "--output", "text"],
-        'regional': True,
-        'columns': ['Region', 'Namespace', 'Metric Name']
     }
 }
