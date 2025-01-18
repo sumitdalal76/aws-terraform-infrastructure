@@ -49,9 +49,8 @@ def scan_service(service_config):
     Generic function to scan AWS services
     """
     try:
-        console.print("\n" + "=" * 100)
-        console.print(f"# AWS {service_config['title']}")
-        console.print("=" * 100 + "\n")
+        console.print("\n" + "=" * 80)
+        console.print(f"Scanning {service_config['title']}...")
         
         results = []
         
@@ -96,8 +95,6 @@ def scan_service(service_config):
         else:
             no_resources = "| No resources found " + " |" * (len(service_config['columns']) - 1)
             console.print(no_resources)
-        
-        console.print("\n" + "-" * 100)
         
         return results
 
