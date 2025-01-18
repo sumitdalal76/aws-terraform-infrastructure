@@ -1,152 +1,125 @@
-#!/usr/bin/env python3
 import boto3
-from botocore.exceptions import ClientError, EndpointConnectionError
-from rich.console import Console
-from rich.table import Table
+from botocore.exceptions import ClientError
+from tabulate import tabulate
+from colorama import init, Fore, Style
 import json
-import os
-from concurrent.futures import ThreadPoolExecutor
 
-# Initialize console for pretty output
-console = Console()
+init()  # Initialize colorama for cross-platform colored output
 
-# Directory to save the output files
-OUTPUT_DIR = "./aws_resources"
-os.makedirs(OUTPUT_DIR, exist_ok=True)
+def get_all_regions():
+    """Get list of all AWS regions."""
+    try:
+        ec2 = boto3.client('ec2', region_name='us-east-1')
+        regions = [region['RegionName'] for region in ec2.describe_regions()['Regions']]
+        return regions
+    except ClientError as e:
+        print(f"{Fore.RED}Error fetching regions: {e}{Style.RESET_ALL}")
+        return ['us-east-1']  # Fallback to default region
 
+def get_all_services(region):
+    """Get list of all AWS services in a region."""
+    try:
+        quotas = boto3.client('service-quotas', region_name=region)
+        services = [service['ServiceCode'] for service in quotas.list_services()['Services']]
+        return services
+    except ClientError as e:
+        print(f"{Fore.RED}Error fetching services in {region}: {e}{Style.RESET_ALL}")
+        return []
 
-def get_regions():
-    """Retrieve all AWS regions."""
-    ec2 = boto3.client("ec2")
-    return [region["RegionName"] for region in ec2.describe_regions()["Regions"]]
+def scan_resources():
+    """Scan AWS resources across all regions."""
+    print(f"\n{Fore.BLUE}🔍 Starting AWS Resource Scanner{Style.RESET_ALL}")
+    
+    # Get all regions
+    regions = get_all_regions()
+    print(f"\n{Fore.YELLOW}📍 Scanning Regions:{Style.RESET_ALL}")
+    print(', '.join(regions))
 
+    # Get services from us-east-1 as reference
+    services = get_all_services('us-east-1')
+    print(f"\n{Fore.YELLOW}🔧 Scanning Services:{Style.RESET_ALL}")
+    print(', '.join(services))
 
-def get_services():
-    """Retrieve all available AWS services."""
-    session = boto3.Session()
-    return session.get_available_services()
+    resources = {}
 
-
-def list_resources_for_service(client, service, region):
-    """List all resources for a given service and region."""
-    operations = client.meta.service_model.operation_names
-    list_operations = [op for op in operations if op.startswith("list_") or op.startswith("describe_")]
-    results = []
-
-    for operation in list_operations:
+    for region in regions:
         try:
-            # Call the operation dynamically
-            method = getattr(client, operation)
-            paginator = client.get_paginator(operation)
-            response_iterator = paginator.paginate()
-
-            # Collect all results
-            for page in response_iterator:
-                for key, value in page.items():
-                    if isinstance(value, list):
-                        for item in value:
-                            results.append({"Region": region, "Service": service, **flatten_dict(item)})
-
+            print(f"\n{Fore.CYAN}⏳ Scanning region: {region}{Style.RESET_ALL}")
+            
+            tagging = boto3.client('resourcegroupstaggingapi', region_name=region)
+            paginator = tagging.get_paginator('get_resources')
+            
+            for page in paginator.paginate():
+                for resource in page['ResourceTagMappingList']:
+                    arn = resource['ResourceARN']
+                    service = arn.split(':')[2]
+                    
+                    if service not in resources:
+                        resources[service] = []
+                    
+                    resources[service].append({
+                        'region': region,
+                        'arn': arn,
+                        'tags': resource.get('Tags', [])
+                    })
+            
+            if not page['ResourceTagMappingList']:
+                print(f"{Fore.WHITE}No resources found in {region}{Style.RESET_ALL}")
+                
         except ClientError as e:
-            console.print(f"[bold yellow]No permissions or empty response for {operation} in {service}: {e}[/bold yellow]")
-        except EndpointConnectionError as e:
-            console.print(f"[bold red]Connection issue for {operation} in {service}: {e}[/bold red]")
-        except Exception as e:
-            console.print(f"[bold red]Error for {operation} in {service}: {e}[/bold red]")
+            print(f"{Fore.RED}Error scanning region {region}: {e}{Style.RESET_ALL}")
 
-    return results
+    return resources
 
+def print_table_format(resources):
+    """Print resources in table format."""
+    print(f"\n{Fore.GREEN}📊 Resources (Table Format):{Style.RESET_ALL}")
+    
+    table_data = []
+    for service, resource_list in resources.items():
+        for resource in resource_list:
+            table_data.append([
+                service,
+                resource['region'],
+                resource['arn'],
+                json.dumps(resource['tags'])
+            ])
+    
+    if table_data:
+        headers = ['Service', 'Region', 'Resource ARN', 'Tags']
+        print(tabulate(table_data, headers=headers, tablefmt='grid'))
+    else:
+        print("No resources found")
 
-def scan_region(region, services):
-    """Scan all resources for all services in a region."""
-    session = boto3.Session(region_name=region)
-    region_resources = []
-
-    for service in services:
-        try:
-            client = session.client(service)
-            resources = list_resources_for_service(client, service, region)
-            if resources:
-                region_resources.extend(resources)
-
-        except Exception as e:
-            console.print(f"[bold red]Failed to initialize client for {service} in {region}: {e}[/bold red]")
-
-    return region_resources
-
-
-def flatten_dict(d, parent_key="", sep="_"):
-    """
-    Flattens nested dictionaries to handle complex AWS resource structures.
-    For example, {"a": {"b": 1}} becomes {"a_b": 1}.
-    """
-    items = []
-    for k, v in d.items():
-        new_key = f"{parent_key}{sep}{k}" if parent_key else k
-        if isinstance(v, dict):
-            items.extend(flatten_dict(v, new_key, sep=sep).items())
-        else:
-            items.append((new_key, v))
-    return dict(items)
-
-
-def print_table(title, items):
-    """Prints a table with a dynamic column structure."""
-    if not items:
-        console.print(f"[bold yellow]{title}: No resources found.[/bold yellow]")
-        return
-
-    table = Table(title=title)
-    keys = items[0].keys()  # Extract keys from the first item
-    for key in keys:
-        table.add_column(key)
-
-    for item in items:
-        table.add_row(*[str(item.get(key, "N/A")) for key in keys])
-
-    console.print(table)
-
+def print_list_format(resources):
+    """Print resources in list format."""
+    print(f"\n{Fore.GREEN}📝 Resources (List Format):{Style.RESET_ALL}")
+    
+    for service, resource_list in resources.items():
+        print(f"\n{Fore.YELLOW}Service: {service}{Style.RESET_ALL}")
+        for resource in resource_list:
+            print(f"{Fore.CYAN}  Region: {resource['region']}{Style.RESET_ALL}")
+            print(f"  ARN: {resource['arn']}")
+            print(f"  Tags: {json.dumps(resource['tags'])}")
+            print("  ---")
 
 def main():
-    console.print("[bold cyan]Starting AWS Resource Inventory...[/bold cyan]")
+    try:
+        resources = scan_resources()
+        
+        if not resources:
+            print(f"\n{Fore.YELLOW}⚠️ No resources found. This could mean:{Style.RESET_ALL}")
+            print("  - The account is new or empty")
+            print("  - Insufficient permissions")
+            print("  - Resources exist but are not tagged")
+            return
 
-    regions = get_regions()
-    services = get_services()
-
-    # Print regions and services only once
-    console.print(f"[bold cyan]Scanning resources for all regions: {', '.join(regions)}[/bold cyan]")
-    console.print(f"[bold cyan]Scanning for all services: {', '.join(services)}[/bold cyan]")
-
-    all_resources = []
-
-    # Scan resources in parallel for each region
-    with ThreadPoolExecutor(max_workers=5) as executor:
-        futures = {executor.submit(scan_region, region, services): region for region in regions}
-
-        for future in futures:
-            region = futures[future]
-            try:
-                region_resources = future.result()
-                if region_resources:
-                    all_resources.extend(region_resources)
-                else:
-                    console.print(f"[bold yellow]No resources found in region: {region}[/bold yellow]")
-
-            except Exception as e:
-                console.print(f"[bold red]Error processing region {region}: {e}[/bold red]")
-
-    if all_resources:
-        # Print consolidated table
-        print_table("AWS Resources Inventory", all_resources)
-
-        # Save all resources to a consolidated file
-        with open(f"{OUTPUT_DIR}/all_resources.json", "w") as f:
-            json.dump(all_resources, f, indent=4)
-
-        console.print(f"[bold green]All resources saved to {OUTPUT_DIR}/all_resources.json[/bold green]")
-    else:
-        console.print("[bold yellow]No resources found. Nothing to save to file.[/bold yellow]")
-
+        print_table_format(resources)
+        print_list_format(resources)
+        
+    except Exception as e:
+        print(f"{Fore.RED}\n❌ Fatal error: {e}{Style.RESET_ALL}")
+        exit(1)
 
 if __name__ == "__main__":
     main()
