@@ -53,13 +53,13 @@ def scan_service(service_config):
         table = Table(
             title=f"AWS {service_config['title']}", 
             show_header=True,
-            expand=True  # This will make table use full width
+            expand=True
         )
         results = []
         
         # Add columns from service config
         for col in service_config['columns']:
-            table.add_column(col, no_wrap=True)  # no_wrap prevents text wrapping
+            table.add_column(col, no_wrap=False, justify="left")
         
         if service_config.get('regional', False):
             regions = get_regions()
@@ -80,7 +80,7 @@ def scan_service(service_config):
                             })
             
             if not has_resources:
-                table.add_row("No resources found")
+                table.add_row("No resources found", *[""] * (len(service_config['columns']) - 1))
         else:
             command = service_config['command']()
             output = run_aws_command(command)
@@ -94,7 +94,7 @@ def scan_service(service_config):
                             'Output': line.strip()
                         })
             else:
-                table.add_row("No resources found")
+                table.add_row("No resources found", *[""] * (len(service_config['columns']) - 1))
         
         console.print(table)
         return results
