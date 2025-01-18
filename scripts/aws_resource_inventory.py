@@ -53,9 +53,9 @@ def scan_service(service_config):
         console.print(f"\n# AWS {service_config['title']}")
         results = []
         
-        # Print header
-        header = "| " + " | ".join(service_config['columns']) + " |"
-        separator = "|" + "|".join(["---" for _ in service_config['columns']]) + "|"
+        # Print header with better spacing
+        header = "| " + " | ".join(f" {col} " for col in service_config['columns']) + " |"
+        separator = "|" + "|".join(["----" for _ in service_config['columns']]) + "|"
         
         console.print(header)
         console.print(separator)
@@ -72,7 +72,7 @@ def scan_service(service_config):
                         if line and not line.isspace():
                             has_resources = True
                             values = [item.strip() for item in line.strip().split('\t')]
-                            row = f"| {region} | " + " | ".join(values) + " |"
+                            row = f"| {region} | " + " | ".join(f" {v} " for v in values) + " |"
                             console.print(row)
                             results.append({
                                 'Region': region,
@@ -80,7 +80,7 @@ def scan_service(service_config):
                             })
             
             if not has_resources:
-                console.print("| No resources found |" + "|" * (len(service_config['columns']) - 1) + "|")
+                console.print(f"| No resources found {' |' * (len(service_config['columns']) - 1)}")
         else:
             command = service_config['command']()
             output = run_aws_command(command)
@@ -89,13 +89,13 @@ def scan_service(service_config):
                 for line in output.split('\n'):
                     if line and not line.isspace():
                         values = [item.strip() for item in line.strip().split()]
-                        row = "| " + " | ".join(values) + " |"
+                        row = "| " + " | ".join(f" {v} " for v in values) + " |"
                         console.print(row)
                         results.append({
                             'Output': line.strip()
                         })
             else:
-                console.print("| No resources found |" + "|" * (len(service_config['columns']) - 1) + "|")
+                console.print(f"| No resources found {' |' * (len(service_config['columns']) - 1)}")
         
         return results
 
