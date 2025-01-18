@@ -959,6 +959,10 @@ def main():
     
     inventory = AWSResourceInventory()
     resources = inventory.generate_inventory()
+    
+    # Add this line to print the tables
+    inventory.print_consolidated_table(resources)
+    
     inventory.save_inventory(resources)
     
     console.print("\n[bold cyan]AWS Resource Inventory Complete![/bold cyan]")
