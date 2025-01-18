@@ -3,7 +3,7 @@ resource "aws_lb" "main" {
   internal           = false
   load_balancer_type = "application"
   security_groups    = [var.security_group_id]
-  subnets           = var.public_subnet_ids
+  subnets            = var.public_subnet_ids
 
   tags = {
     Name        = "${var.project_name}-alb"
@@ -22,11 +22,11 @@ resource "aws_lb_target_group" "main" {
     enabled             = true
     healthy_threshold   = 2
     interval            = 30
-    matcher            = "200"
-    path               = "/"
-    port               = "traffic-port"
-    protocol           = "HTTP"
-    timeout            = 5
+    matcher             = "200"
+    path                = "/"
+    port                = "traffic-port"
+    protocol            = "HTTP"
+    timeout             = 5
     unhealthy_threshold = 2
   }
 

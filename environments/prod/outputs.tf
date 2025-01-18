@@ -20,7 +20,7 @@ output "certificate_arn" {
 
 output "summary" {
   description = "Application Access Information"
-  value = <<EOF
+  value       = <<EOF
 
 =============================================================
   Application will be accessible at: https://${var.domain_name}

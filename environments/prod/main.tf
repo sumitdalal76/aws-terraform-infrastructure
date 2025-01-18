@@ -5,7 +5,7 @@ terraform {
       version = "~> 5.0"
     }
   }
-  
+
   backend "s3" {
     bucket         = "772102554033-prod-terraform-state"
     key            = "infrastructure/terraform.tfstate"
@@ -36,7 +36,6 @@ module "security" {
   vpc_id       = module.networking.vpc_id
 }
 
-# Create DNS zone first (needed for ACM validation)
 module "dns" {
   source = "../../modules/dns"
 
@@ -45,10 +44,9 @@ module "dns" {
   environment  = var.environment
 }
 
-# ACM module
 module "acm" {
   source = "../../modules/acm"
-  
+
   domain_name  = var.domain_name
   project_name = var.project_name
   environment  = var.environment
@@ -57,18 +55,17 @@ module "acm" {
   depends_on = [null_resource.update_nameservers]
 }
 
-# Loadbalancer module
 module "loadbalancer" {
   source = "../../modules/loadbalancer"
-  
+
   project_name      = var.project_name
   environment       = var.environment
-  vpc_id           = module.networking.vpc_id
+  vpc_id            = module.networking.vpc_id
   public_subnet_ids = module.networking.public_subnet_ids
   security_group_id = module.security.alb_sg_id
   certificate_arn   = module.acm.certificate_arn
-  zone_id          = module.dns.zone_id
-  domain_name      = var.domain_name
+  zone_id           = module.dns.zone_id
+  domain_name       = var.domain_name
 
   depends_on = [module.acm]
 }
@@ -78,21 +75,19 @@ module "ec2" {
 
   project_name      = var.project_name
   environment       = var.environment
-  ami_id           = var.ami_id
-  subnet_id        = module.networking.public_subnet_ids[0]
+  ami_id            = var.ami_id
+  subnet_id         = module.networking.public_subnet_ids[0]
   security_group_id = module.security.alb_sg_id
-  target_group_arn = module.loadbalancer.target_group_arn
+  target_group_arn  = module.loadbalancer.target_group_arn
 
   depends_on = [module.networking, module.security, module.loadbalancer]
 }
 
-# Get nameservers after zone creation
 data "aws_route53_zone" "selected" {
-  name = var.apex_domain
+  name       = var.apex_domain
   depends_on = [module.dns]
 }
 
-# Automate nameserver update
 resource "null_resource" "update_nameservers" {
   triggers = {
     zone_id = module.dns.zone_id
