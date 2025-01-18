@@ -1,24 +1,27 @@
-# List of services to scan
+# Just list the services you want to scan
 SERVICES_TO_SCAN = ['s3', 'vpc']
 
-# Service configurations dictionary
-SERVICE_CONFIGS = {
-    's3': {
-        'title': 'S3 Buckets',
-        'regional': False,
-        'columns': ['Creation Date', 'Bucket Name', 'Versioning', 'Access'],
-        'command': lambda: ["aws", "s3", "ls"]
-    },
-    'vpc': {
-        'title': 'VPCs',
-        'regional': True,
-        'columns': ['Region', 'VPC ID', 'CIDR Block', 'State', 'DHCP Options', 'DNS Support'],
-        'command': lambda region: [
-            "aws", "ec2", "describe-vpcs",
-            "--region", region,
-            "--filters", "Name=is-default,Values=false",
-            "--query", "Vpcs[].[VpcId,CidrBlock,State,DhcpOptionsId,EnableDnsSupport]",
-            "--output", "text"
-        ]
-    }
-}
+# Basic configuration that works for any service
+def get_service_config(service_name):
+    """
+    Get basic configuration for any AWS service
+    """
+    if service_name == 's3':
+        return {
+            'title': 'S3 Buckets',
+            'regional': False,
+            'command': lambda: ["aws", "s3", "ls"]
+        }
+    else:
+        return {
+            'title': f'{service_name.upper()}',
+            'regional': True,
+            'command': lambda region: [
+                "aws", service_name, "describe-" + service_name + "s",
+                "--region", region,
+                "--output", "text"
+            ]
+        }
+
+# Generate configs for all services
+SERVICE_CONFIGS = {service: get_service_config(service) for service in SERVICES_TO_SCAN}

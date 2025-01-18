@@ -41,10 +41,6 @@ def scan_service(service_config):
         table = Table(title=f"AWS {service_config['title']}")
         results = []
         
-        # Add columns to table
-        for col in service_config['columns']:
-            table.add_column(col)
-        
         if service_config.get('regional', False):
             # For regional services, scan each region
             regions = get_regions()
@@ -56,27 +52,23 @@ def scan_service(service_config):
                     # Process output
                     for line in output.split('\n'):
                         if line and not line.isspace():
-                            values = line.strip().split('\t')
-                            if len(values) >= len(service_config['columns']) - 1:  # -1 for region
-                                table.add_row(region, *values)
-                                results.append({
-                                    'Region': region,
-                                    'Values': values
-                                })
+                            table.add_row(region, line.strip())
+                            results.append({
+                                'Region': region,
+                                'Output': line.strip()
+                            })
         else:
-            # For global services
+            # For global services like S3
             command = service_config['command']()
             output = run_aws_command(command)
             
             # Process output
             for line in output.split('\n'):
                 if line and not line.isspace():
-                    values = line.strip().split(' ', 1)
-                    if len(values) >= len(service_config['columns']):
-                        table.add_row(*values)
-                        results.append({
-                            'Values': values
-                        })
+                    table.add_row(line.strip())
+                    results.append({
+                        'Output': line.strip()
+                    })
         
         console.print(table)
         return results
