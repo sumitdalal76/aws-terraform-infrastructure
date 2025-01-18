@@ -4,41 +4,36 @@ import subprocess
 from rich.console import Console
 from rich.table import Table
 
-# Initialize console for output
+# Initialize console for better terminal output
 console = Console()
 
-def run_aws_list_all(services_operations, region):
+def run_aws_list_all():
     """
-    Run the aws-list-all command for specific services and operations in a single region.
+    Run the aws-list-all command to scan only S3 resources.
     """
     output_dir = "aws_list_all_output"
+
+    # Create output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
 
+    console.print("[bold cyan]Running aws-list-all for S3 buckets...[/bold cyan]")
+
     try:
-        console.print(f"[bold cyan]Scanning resources in region: {region}[/bold cyan]")
-        console.print("[bold cyan]Running aws-list-all for specific services and operations...[/bold cyan]")
-
-        for service, operations in services_operations.items():
-            for operation in operations:
-                console.print(f"[bold blue]Scanning {service}: {operation}[/bold blue]")
-                subprocess.run(
-                    [
-                        "aws-list-all", "query",
-                        "--service", service,
-                        "--operation", operation,
-                        "--region", region,
-                        "--directory", output_dir,
-                        "--verbose"
-                    ],
-                    check=True
-                )
-
-        console.print(f"[bold green]Resource data saved to directory: {output_dir}[/bold green]")
-        return output_dir
-
+        subprocess.run(
+            [
+                "aws-list-all",
+                "query",
+                "--service", "s3",
+                "--operation", "ListBuckets",
+                "--directory", output_dir
+            ],
+            check=True
+        )
     except subprocess.CalledProcessError as e:
         console.print(f"[bold red]Error running aws-list-all: {e}[/bold red]")
-        return None
+        raise
+
+    return output_dir
 
 def parse_and_display(output_dir):
     """
@@ -55,14 +50,12 @@ def parse_and_display(output_dir):
                         # Parse JSON data
                         data = json.load(f)
                         service = data.get("Service", "Unknown")
-                        region = data.get("Region", "Unknown")
                         operation = data.get("Operation", "Unknown")
 
                         # Look for resource data
                         resources = data.get("Resources", [])
                         for resource in resources:
                             all_resources.append({
-                                "Region": region,
                                 "Service": service,
                                 "Operation": operation,
                                 "Resource": json.dumps(resource, indent=2),
@@ -72,49 +65,36 @@ def parse_and_display(output_dir):
 
     if all_resources:
         print_resources_table(all_resources)
-        save_to_json(all_resources, "aws_resources_summary.json")
+        save_to_json(all_resources, "aws_s3_resources_summary.json")
     else:
-        console.print("[bold yellow]No resources found in the scanned regions and services.[/bold yellow]")
+        console.print("[bold yellow]No resources found for S3.[/bold yellow]")
 
 def print_resources_table(resources):
     """
-    Print resources in a consolidated table format.
+    Print the resources in a table format.
     """
-    table = Table(title="AWS Resources")
-    table.add_column("Region")
-    table.add_column("Service")
-    table.add_column("Operation")
-    table.add_column("Resource")
+    table = Table(title="AWS S3 Resources")
+    table.add_column("Service", style="cyan", no_wrap=True)
+    table.add_column("Operation", style="green")
+    table.add_column("Resource", style="magenta")
 
-    for res in resources:
+    for resource in resources:
         table.add_row(
-            res["Region"],
-            res["Service"],
-            res["Operation"],
-            res["Resource"]
+            resource["Service"],
+            resource["Operation"],
+            resource["Resource"]
         )
 
     console.print(table)
 
 def save_to_json(data, filename):
     """
-    Save data to a JSON file.
+    Save the resource data to a JSON file.
     """
     with open(filename, "w") as f:
         json.dump(data, f, indent=4)
-    console.print(f"[bold green]Resources summary saved to {filename}[/bold green]")
+    console.print(f"[bold green]Resource data saved to {filename}[/bold green]")
 
 if __name__ == "__main__":
-    # Define specific services and operations to scan
-    services_operations = {
-        "ec2": ["DescribeVpcs", "DescribeSubnets", "DescribeSecurityGroups"],
-        "s3": ["ListBuckets"],
-        "dynamodb": ["ListTables"]
-    }
-
-    # Target a single region for faster testing
-    region = "ca-central-1"
-
-    output_dir = run_aws_list_all(services_operations, region)
-    if output_dir:
-        parse_and_display(output_dir)
+    output_dir = run_aws_list_all()
+    parse_and_display(output_dir)
