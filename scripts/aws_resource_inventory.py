@@ -50,15 +50,25 @@ def scan_service(service_config):
     Generic function to scan AWS services
     """
     try:
-        table = Table(title=f"AWS {service_config['title']}", padding=(0, 2), show_lines=True)
+        table = Table(
+            title=f"AWS {service_config['title']}", 
+            padding=(0, 2), 
+            show_lines=True,
+            box=None  # Remove outer borders for cleaner look
+        )
         results = []
         
-        # Add columns from service config
+        # Add columns from service config with minimum widths
         for col in service_config['columns']:
-            table.add_column(col, justify="left", no_wrap=True)
+            table.add_column(
+                col, 
+                justify="left", 
+                no_wrap=True,
+                min_width=20,  # Minimum width for each column
+                max_width=50   # Maximum width to prevent too wide columns
+            )
         
         if service_config.get('regional', False):
-            # For regional services, scan each region
             regions = get_regions()
             has_resources = False
             for region in regions:
@@ -66,11 +76,14 @@ def scan_service(service_config):
                 output = run_aws_command(command)
                 
                 if output:
-                    # Process output
                     for line in output.split('\n'):
                         if line and not line.isspace():
                             has_resources = True
-                            table.add_row(region, *[item.strip() for item in line.strip().split('\t')])
+                            # Clean and format the values
+                            values = [item.strip() for item in line.strip().split('\t')]
+                            # Truncate long values if needed
+                            formatted_values = [v[:47] + '...' if len(v) > 50 else v for v in values]
+                            table.add_row(region, *formatted_values)
                             results.append({
                                 'Region': region,
                                 'Output': line.strip()
@@ -79,15 +92,15 @@ def scan_service(service_config):
             if not has_resources:
                 table.add_row("No resources found")
         else:
-            # For global services like S3
             command = service_config['command']()
             output = run_aws_command(command)
             
-            # Process output
             if output:
                 for line in output.split('\n'):
                     if line and not line.isspace():
-                        table.add_row(*[item.strip() for item in line.strip().split()])
+                        values = [item.strip() for item in line.strip().split()]
+                        formatted_values = [v[:47] + '...' if len(v) > 50 else v for v in values]
+                        table.add_row(*formatted_values)
                         results.append({
                             'Output': line.strip()
                         })
