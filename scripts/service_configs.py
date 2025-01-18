@@ -16,26 +16,9 @@ SERVICE_CONFIGS = {
         ],
         'command': lambda: [
             "aws", "s3api", "list-buckets",
-            "--output", "text",
-            "--query", "Buckets[].[CreationDate,Name]"
-        ],
-        'additional_commands': {
-            'metrics': lambda bucket: [
-                "aws", "s3api", "get-bucket-metrics-configuration",
-                "--bucket", bucket,
-                "--output", "text"
-            ],
-            'versioning': lambda bucket: [
-                "aws", "s3api", "get-bucket-versioning",
-                "--bucket", bucket,
-                "--output", "text"
-            ],
-            'encryption': lambda bucket: [
-                "aws", "s3api", "get-bucket-encryption",
-                "--bucket", bucket,
-                "--output", "text"
-            ]
-        }
+            "--query", "Buckets[].[CreationDate,Name]",
+            "--output", "text"
+        ]
     },
     'vpc': {
         'title': 'VPCs',
@@ -54,42 +37,20 @@ SERVICE_CONFIGS = {
         'command': lambda region: [
             "aws", "ec2", "describe-vpcs",
             "--region", region,
-            "--output", "text",
+            "--filters", "Name=is-default,Values=false",
             "--query", """
-            Vpcs[?IsDefault==`false`].[
+            Vpcs[].[
                 VpcId,
                 Tags[?Key=='Name'].Value | [0] || 'Unnamed',
                 CidrBlock,
                 State,
                 DhcpOptionsId,
-                EnableDnsHostnames,
-                EnableDnsSupport
+                (RouteTableIds || ''),
+                (SubnetIds || ''),
+                (FlowLogs || '')
             ]
-            """
-        ],
-        'additional_commands': {
-            'route_tables': lambda region, vpc_id: [
-                "aws", "ec2", "describe-route-tables",
-                "--region", region,
-                "--filters", f"Name=vpc-id,Values={vpc_id}",
-                "--query", "RouteTables[].Routes[].DestinationCidrBlock",
-                "--output", "text"
-            ],
-            'subnets': lambda region, vpc_id: [
-                "aws", "ec2", "describe-subnets",
-                "--region", region,
-                "--filters", f"Name=vpc-id,Values={vpc_id}",
-                "--query", "Subnets[].[CidrBlock,AvailabilityZone]",
-                "--output", "text"
-            ],
-            'flow_logs': lambda region, vpc_id: [
-                "aws", "ec2", "describe-flow-logs",
-                "--region", region,
-                "--filter", f"Name=resource-id,Values={vpc_id}",
-                "--query", "FlowLogs[].LogGroupName",
-                "--output", "text"
-            ]
-        }
+            """,
+            "--output", "text"
+        ]
     }
-    # Add more services here
 }
