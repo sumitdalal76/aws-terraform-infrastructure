@@ -43,7 +43,7 @@ def scan_service(service_config):
         
         # Add columns to table
         for col in service_config['columns']:
-            table.add_column(col['header'], style=col.get('style', 'white'))
+            table.add_column(col)
         
         if service_config.get('regional', False):
             # For regional services, scan each region
