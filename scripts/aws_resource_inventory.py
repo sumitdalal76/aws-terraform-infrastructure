@@ -1,6 +1,7 @@
 import subprocess
 from rich.console import Console
 from rich.table import Table
+from services.service_configs import SERVICE_CONFIGS, SERVICES_TO_SCAN
 
 # Initialize console for better terminal output
 console = Console()
@@ -56,8 +57,6 @@ def scan_service(service_config):
                             values = line.strip().split('\t')
                             if len(values) >= len(service_config['columns']) - 1:  # -1 for region
                                 table.add_row(region, *values)
-                else:
-                    console.print(f"[bold yellow]No resources found in {region}[/bold yellow]")
         else:
             # For global services
             command = service_config['command']()
@@ -75,36 +74,6 @@ def scan_service(service_config):
     except Exception as e:
         console.print(f"[bold red]Error scanning {service_config['title']}: {str(e)}[/bold red]")
 
-# Service configurations
-SERVICE_CONFIGS = {
-    's3': {
-        'title': 'S3 Buckets',
-        'regional': False,
-        'columns': [
-            {'header': 'Creation Date', 'style': 'cyan'},
-            {'header': 'Bucket Name', 'style': 'green'}
-        ],
-        'command': lambda: ["aws", "s3", "ls"]
-    },
-    'vpc': {
-        'title': 'VPCs',
-        'regional': True,
-        'columns': [
-            {'header': 'Region', 'style': 'blue'},
-            {'header': 'VPC ID', 'style': 'cyan'},
-            {'header': 'CIDR Block', 'style': 'green'},
-            {'header': 'State', 'style': 'yellow'}
-        ],
-        'command': lambda region: [
-            "aws", "ec2", "describe-vpcs",
-            "--region", region,
-            "--output", "text",
-            "--query", "Vpcs[].[VpcId,CidrBlock,State]"
-        ]
-    }
-    # Add more services here following the same pattern
-}
-
 def scan_aws_resources(services=None):
     """
     Main function to scan AWS resources
@@ -120,8 +89,4 @@ def scan_aws_resources(services=None):
             console.print(f"[bold red]Service {service} not configured[/bold red]")
 
 if __name__ == "__main__":
-    # Scan specific services
-    scan_aws_resources(['s3', 'vpc'])
-    
-    # Or scan all configured services
-    # scan_aws_resources()
+    scan_aws_resources(SERVICES_TO_SCAN)
