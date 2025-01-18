@@ -49,7 +49,10 @@ def scan_service(service_config):
     Generic function to scan AWS services
     """
     try:
-        console.print(f"\n# AWS {service_config['title']}")
+        console.print("\n" + "=" * 100)
+        console.print(f"# AWS {service_config['title']}")
+        console.print("=" * 100 + "\n")
+        
         results = []
         
         all_rows = []
@@ -77,10 +80,8 @@ def scan_service(service_config):
                 if i < len(column_widths):
                     column_widths[i] = max(column_widths[i], len(str(value)))
 
-        # Add padding to column widths
-        column_widths = [width + 2 for width in column_widths]  # Add 2 for spacing
+        column_widths = [width + 2 for width in column_widths]
 
-        # Print header and rows with consistent spacing
         header = "| " + " | ".join(f"{col:^{width}}" for col, width in zip(service_config['columns'], column_widths)) + " |"
         separator = "|-" + "-|-".join("-" * width for width in column_widths) + "-|"
         
@@ -95,6 +96,8 @@ def scan_service(service_config):
         else:
             no_resources = "| No resources found " + " |" * (len(service_config['columns']) - 1)
             console.print(no_resources)
+        
+        console.print("\n" + "-" * 100)
         
         return results
 
