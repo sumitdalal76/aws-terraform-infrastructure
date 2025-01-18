@@ -953,9 +953,7 @@ class AWSResourceInventory:
             self.inventory_data['regions'][region] = {
                 k: v for k, v in regional_data.items() if v is not None
             }
-
-        console.print("\n")
-        self.print_consolidated_table(self.inventory_data)
+        
         return self.inventory_data
 
     def save_inventory(self, inventory: Dict, filename: str = 'aws_inventory.json'):
