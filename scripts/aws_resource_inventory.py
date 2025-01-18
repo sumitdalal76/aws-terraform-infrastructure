@@ -260,146 +260,83 @@ class AWSResourceInventory:
         console.print("\n[bold cyan]=== AWS Resource Summary ===[/bold cyan]\n")
 
         # Global Resources Summary
-        console.print("[bold blue]Global Resources[/bold blue]")
-        
-        # S3 Buckets
-        if inventory_data['s3_buckets']:
-            s3_table = Table(title="S3 Buckets", show_header=True, header_style="bold magenta")
-            s3_table.add_column("Bucket Name")
-            s3_table.add_column("Creation Date")
-            for bucket in inventory_data['s3_buckets']:
-                s3_table.add_row(bucket['Name'], bucket['CreationDate'])
-            console.print(s3_table)
-            console.print("\n")
+        if inventory_data['s3_buckets'] or inventory_data['route53_zones']:
+            console.print("[bold blue]Global Resources[/bold blue]")
+            
+            # S3 Buckets
+            if inventory_data['s3_buckets']:
+                s3_table = Table(title="S3 Buckets", show_header=True, header_style="bold magenta")
+                s3_table.add_column("Bucket Name")
+                s3_table.add_column("Creation Date")
+                for bucket in inventory_data['s3_buckets']:
+                    s3_table.add_row(bucket['Name'], bucket['CreationDate'])
+                console.print(s3_table)
+                console.print("\n")
 
-        # Route53 Zones
-        if inventory_data['route53_zones']:
-            route53_table = Table(title="Route53 Hosted Zones", show_header=True, header_style="bold magenta")
-            route53_table.add_column("Zone Name")
-            route53_table.add_column("Zone ID")
-            route53_table.add_column("Record Count")
-            route53_table.add_column("Type")
-            for zone in inventory_data['route53_zones']:
-                zone_type = "Private" if zone['Private'] else "Public"
-                route53_table.add_row(zone['Name'], zone['Id'], str(zone['RecordCount']), zone_type)
-            console.print(route53_table)
-            console.print("\n")
+            # Route53 Zones
+            if inventory_data['route53_zones']:
+                route53_table = Table(title="Route53 Hosted Zones", show_header=True, header_style="bold magenta")
+                route53_table.add_column("Zone Name")
+                route53_table.add_column("Zone ID")
+                route53_table.add_column("Record Count")
+                route53_table.add_column("Type")
+                for zone in inventory_data['route53_zones']:
+                    zone_type = "Private" if zone['Private'] else "Public"
+                    route53_table.add_row(zone['Name'], zone['Id'], str(zone['RecordCount']), zone_type)
+                console.print(route53_table)
+                console.print("\n")
 
         # Regional Resources Summary
+        console.print("[bold blue]Regional Resources[/bold blue]\n")
+        
         for region, resources in inventory_data['regions'].items():
-            if not any(resources.values()):  # Skip regions with no resources
-                continue
-                
-            console.print(f"[bold green]Region: {region}[/bold green]")
+            has_resources = any(resource_list for resource_list in resources.values() if resource_list)
             
-            # EC2 Instances
-            if resources['ec2_instances']:
-                ec2_table = Table(title="EC2 Instances", show_header=True, header_style="bold magenta")
-                ec2_table.add_column("Instance ID")
-                ec2_table.add_column("Type")
-                ec2_table.add_column("State")
-                ec2_table.add_column("Launch Time")
-                ec2_table.add_column("Name")
+            if has_resources:
+                console.print(f"[bold green]Region: {region}[/bold green]")
                 
-                for instance in resources['ec2_instances']:
-                    name = next((tag['Value'] for tag in instance['Tags'] if tag['Key'] == 'Name'), 'N/A')
-                    ec2_table.add_row(
-                        instance['InstanceId'],
-                        instance['InstanceType'],
-                        instance['State'],
-                        instance['LaunchTime'],
-                        name
-                    )
-                console.print(ec2_table)
-                console.print("\n")
+                # EC2 Instances
+                if resources['ec2_instances']:
+                    ec2_table = Table(title="EC2 Instances", show_header=True, header_style="bold magenta")
+                    ec2_table.add_column("Instance ID")
+                    ec2_table.add_column("Type")
+                    ec2_table.add_column("State")
+                    ec2_table.add_column("Launch Time")
+                    ec2_table.add_column("Name")
+                    
+                    for instance in resources['ec2_instances']:
+                        name = next((tag['Value'] for tag in instance['Tags'] if tag['Key'] == 'Name'), 'N/A')
+                        ec2_table.add_row(
+                            instance['InstanceId'],
+                            instance['InstanceType'],
+                            instance['State'],
+                            instance['LaunchTime'],
+                            name
+                        )
+                    console.print(ec2_table)
+                    console.print("\n")
 
-            # RDS Instances
-            if resources['rds_instances']:
-                rds_table = Table(title="RDS Instances", show_header=True, header_style="bold magenta")
-                rds_table.add_column("Identifier")
-                rds_table.add_column("Engine")
-                rds_table.add_column("Class")
-                rds_table.add_column("Status")
-                
-                for db in resources['rds_instances']:
-                    rds_table.add_row(
-                        db['DBInstanceIdentifier'],
-                        db['Engine'],
-                        db['DBInstanceClass'],
-                        db['Status']
-                    )
-                console.print(rds_table)
-                console.print("\n")
+                # DynamoDB Tables
+                if resources['dynamodb_tables']:
+                    dynamo_table = Table(title="DynamoDB Tables", show_header=True, header_style="bold magenta")
+                    dynamo_table.add_column("Table Name")
+                    dynamo_table.add_column("Status")
+                    dynamo_table.add_column("Item Count")
+                    dynamo_table.add_column("Size (Bytes)")
+                    dynamo_table.add_column("Provisioned Throughput")
+                    
+                    for table in resources['dynamodb_tables']:
+                        dynamo_table.add_row(
+                            table['TableName'],
+                            table['Status'],
+                            str(table['ItemCount']),
+                            str(table['SizeBytes']),
+                            table['ProvisionedThroughput']
+                        )
+                    console.print(dynamo_table)
+                    console.print("\n")
 
-            # Lambda Functions
-            if resources['lambda_functions']:
-                lambda_table = Table(title="Lambda Functions", show_header=True, header_style="bold magenta")
-                lambda_table.add_column("Function Name")
-                lambda_table.add_column("Runtime")
-                lambda_table.add_column("Memory (MB)")
-                lambda_table.add_column("Timeout (s)")
-                
-                for func in resources['lambda_functions']:
-                    lambda_table.add_row(
-                        func['FunctionName'],
-                        func['Runtime'],
-                        str(func['Memory']),
-                        str(func['Timeout'])
-                    )
-                console.print(lambda_table)
-                console.print("\n")
-
-            # DynamoDB Tables
-            if resources['dynamodb_tables']:
-                dynamo_table = Table(title="DynamoDB Tables", show_header=True, header_style="bold magenta")
-                dynamo_table.add_column("Table Name")
-                dynamo_table.add_column("Status")
-                dynamo_table.add_column("Item Count")
-                dynamo_table.add_column("Size (Bytes)")
-                dynamo_table.add_column("Provisioned Throughput")
-                
-                for table in resources['dynamodb_tables']:
-                    dynamo_table.add_row(
-                        table['TableName'],
-                        table['Status'],
-                        str(table['ItemCount']),
-                        str(table['SizeBytes']),
-                        table['ProvisionedThroughput']
-                    )
-                console.print(dynamo_table)
-                console.print("\n")
-
-            # Load Balancers
-            if resources['load_balancers']:
-                lb_table = Table(title="Load Balancers", show_header=True, header_style="bold magenta")
-                lb_table.add_column("Name")
-                lb_table.add_column("Type")
-                lb_table.add_column("DNS Name")
-                lb_table.add_column("State")
-                
-                for lb in resources['load_balancers']:
-                    lb_table.add_row(
-                        lb['LoadBalancerName'],
-                        lb['Type'],
-                        lb['DNSName'],
-                        lb['State']
-                    )
-                console.print(lb_table)
-                console.print("\n")
-
-            # ECS Clusters
-            if resources['ecs_clusters']:
-                ecs_table = Table(title="ECS Clusters", show_header=True, header_style="bold magenta")
-                ecs_table.add_column("Cluster ARN")
-                ecs_table.add_column("Service Count")
-                
-                for cluster in resources['ecs_clusters']:
-                    ecs_table.add_row(
-                        cluster['ClusterArn'],
-                        str(cluster['ServiceCount'])
-                    )
-                console.print(ecs_table)
-                console.print("\n")
+                # Add other resource tables here...
 
     def print_scan_scope(self):
         """Print the scope of the inventory scan."""
@@ -565,32 +502,28 @@ class AWSResourceInventory:
         }
         
         for region in self.regions:
-            try:
-                console.print(f"Scanning region: {region}")
-                
-                # Collect all regional resources with error handling
-                regional_data = {
-                    'vpcs': self._make_api_call(self.get_vpcs, region),
-                    'ec2_instances': self._make_api_call(self.get_ec2_instances, region),
-                    'rds_instances': self._make_api_call(self.get_rds_instances, region),
-                    'lambda_functions': self._make_api_call(self.get_lambda_functions, region),
-                    'dynamodb_tables': self._make_api_call(self.get_dynamodb_tables, region),
-                    'load_balancers': self._make_api_call(self.get_elb_info, region),
-                    'ecs_clusters': self._make_api_call(self.get_ecs_info, region),
-                    'security_groups': self._make_api_call(self.get_security_groups, region),
-                    'acm_certificates': self._make_api_call(self.get_acm_certificates, region),
-                    'kms_keys': self._make_api_call(self.get_kms_keys, region)
-                }
-                
-                # Filter out None values from failed API calls
-                self.inventory_data['regions'][region] = {
-                    k: v for k, v in regional_data.items() if v is not None
-                }
-                
-            except Exception as e:
-                logger.error(f"Error scanning region {region}: {e}")
-                continue
+            console.print(f"Scanning region: {region}", style="dim")
+            
+            # Collect all regional resources with error handling
+            regional_data = {
+                'vpcs': self._make_api_call(self.get_vpcs, region),
+                'ec2_instances': self._make_api_call(self.get_ec2_instances, region),
+                'rds_instances': self._make_api_call(self.get_rds_instances, region),
+                'lambda_functions': self._make_api_call(self.get_lambda_functions, region),
+                'dynamodb_tables': self._make_api_call(self.get_dynamodb_tables, region),
+                'load_balancers': self._make_api_call(self.get_elb_info, region),
+                'ecs_clusters': self._make_api_call(self.get_ecs_info, region),
+                'security_groups': self._make_api_call(self.get_security_groups, region),
+                'acm_certificates': self._make_api_call(self.get_acm_certificates, region),
+                'kms_keys': self._make_api_call(self.get_kms_keys, region)
+            }
+            
+            # Filter out None values from failed API calls
+            self.inventory_data['regions'][region] = {
+                k: v for k, v in regional_data.items() if v is not None
+            }
 
+        console.print("\n")  # Add spacing before the summary
         self.print_consolidated_table(self.inventory_data)
         return self.inventory_data
 
