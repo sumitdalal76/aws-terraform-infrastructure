@@ -2,10 +2,22 @@ import subprocess
 import json
 from rich.console import Console
 from rich.table import Table
-from service_configs import SERVICE_CONFIGS
+from service_configs import AWS_COMMANDS
 
 # Initialize console for output
 console = Console()
+
+def get_service_config(service_name):
+    """
+    Get configuration for any AWS service
+    """
+    if service_name not in AWS_COMMANDS:
+        raise ValueError(f"Service {service_name} not configured. Please add it to AWS_COMMANDS.")
+    
+    return {
+        'title': f'{service_name.upper()}',
+        **AWS_COMMANDS[service_name]  # Unpacks command and regional settings
+    }
 
 def run_aws_command(command_list):
     """
@@ -33,11 +45,12 @@ def get_regions():
         "--output", "text"
     ]).split()
 
-def scan_service(service_config):
+def scan_service(service_name):
     """
     Generic function to scan AWS services
     """
     try:
+        service_config = get_service_config(service_name)
         table = Table(title=f"AWS {service_config['title']}")
         results = []
         
@@ -95,9 +108,9 @@ def scan_aws_resources():
     """
     all_results = {}
     
-    for service, config in SERVICE_CONFIGS.items():
-        console.print(f"\nScanning {config['title']}...")
-        results = scan_service(config)
+    for service in AWS_COMMANDS.keys():
+        console.print(f"\nScanning {service.upper()}...")
+        results = scan_service(service)
         all_results[service] = results
     
     # Save results to file
