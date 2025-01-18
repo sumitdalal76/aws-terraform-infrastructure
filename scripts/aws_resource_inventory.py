@@ -8,14 +8,15 @@ from rich.table import Table
 # Initialize console for output
 console = Console()
 
-def run_aws_list_all(services_operations):
+def run_aws_list_all(services_operations, region):
     """
-    Run the aws-list-all command for specific services and operations.
+    Run the aws-list-all command for specific services and operations in a single region.
     """
     output_dir = "aws_list_all_output"
     os.makedirs(output_dir, exist_ok=True)
 
     try:
+        console.print(f"[bold cyan]Scanning resources in region: {region}[/bold cyan]")
         console.print("[bold cyan]Running aws-list-all for specific services and operations...[/bold cyan]")
 
         for service, operations in services_operations.items():
@@ -26,6 +27,7 @@ def run_aws_list_all(services_operations):
                         "aws-list-all", "query",
                         "--service", service,
                         "--operation", operation,
+                        "--region", region,
                         "--directory", output_dir,
                         "--verbose"
                     ],
@@ -52,7 +54,7 @@ def parse_and_display(output_dir):
                 with open(file_path, "r") as f:
                     try:
                         data = json.load(f)
-                        for item in data.get("Resources", []):
+                        for item ain data.get("Resources", []):
                             all_resources.append({
                                 "Region": data.get("Region"),
                                 "Service": data.get("Service"),
@@ -104,6 +106,9 @@ if __name__ == "__main__":
         "dynamodb": ["ListTables"]
     }
 
-    output_dir = run_aws_list_all(services_operations)
+    # Target a single region for faster testing
+    region = "ca-central-1"
+
+    output_dir = run_aws_list_all(services_operations, region)
     if output_dir:
         parse_and_display(output_dir)
