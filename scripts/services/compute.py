@@ -44,4 +44,43 @@ class ComputeServices:
             } for function in functions['Functions']]
         except ClientError as e:
             logger.error(f"Error getting Lambda functions in {region}: {e}")
+            return []
+
+    def get_ecs_info(self, region: str) -> List[Dict]:
+        """Get information about ECS clusters and services in a region."""
+        ecs = self.session.client('ecs', region_name=region, config=boto3_config)
+        try:
+            clusters = ecs.list_clusters()
+            cluster_info = []
+            
+            for cluster_arn in clusters['clusterArns']:
+                try:
+                    # Get cluster details
+                    cluster = ecs.describe_clusters(clusters=[cluster_arn])['clusters'][0]
+                    
+                    # Get services in the cluster
+                    services = ecs.list_services(cluster=cluster_arn)
+                    service_count = len(services.get('serviceArns', []))
+                    
+                    # Get task count
+                    tasks = ecs.list_tasks(cluster=cluster_arn)
+                    task_count = len(tasks.get('taskArns', []))
+                    
+                    cluster_info.append({
+                        'ClusterName': cluster['clusterName'],
+                        'ClusterArn': cluster['clusterArn'],
+                        'Status': cluster['status'],
+                        'ServiceCount': service_count,
+                        'TaskCount': task_count,
+                        'ActiveServices': service_count,
+                        'RunningTasks': cluster['runningTasksCount'],
+                        'PendingTasks': cluster['pendingTasksCount'],
+                        'ContainerInstances': cluster['registeredContainerInstancesCount']
+                    })
+                except ClientError:
+                    continue
+            
+            return cluster_info
+        except ClientError as e:
+            logger.error(f"Error getting ECS information in {region}: {e}")
             return [] 
