@@ -1,7 +1,6 @@
-#!/usr/bin/env python3
-import subprocess
 import os
 import json
+import subprocess
 from rich.console import Console
 from rich.table import Table
 
@@ -53,13 +52,20 @@ def parse_and_display(output_dir):
                 file_path = os.path.join(root, file)
                 with open(file_path, "r") as f:
                     try:
+                        # Parse JSON data
                         data = json.load(f)
-                        for item in data.get("Resources", []):
+                        service = data.get("Service", "Unknown")
+                        region = data.get("Region", "Unknown")
+                        operation = data.get("Operation", "Unknown")
+
+                        # Look for resource data
+                        resources = data.get("Resources", [])
+                        for resource in resources:
                             all_resources.append({
-                                "Region": data.get("Region"),
-                                "Service": data.get("Service"),
-                                "Operation": data.get("Operation"),
-                                "Resource": item,
+                                "Region": region,
+                                "Service": service,
+                                "Operation": operation,
+                                "Resource": json.dumps(resource, indent=2),
                             })
                     except json.JSONDecodeError:
                         console.print(f"[bold red]Error parsing JSON file: {file_path}[/bold red]")
@@ -85,7 +91,7 @@ def print_resources_table(resources):
             res["Region"],
             res["Service"],
             res["Operation"],
-            json.dumps(res["Resource"], indent=2)
+            res["Resource"]
         )
 
     console.print(table)
