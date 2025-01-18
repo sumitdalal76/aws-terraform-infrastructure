@@ -8,6 +8,12 @@ from rich.table import Table
 # Initialize console for table output
 console = Console()
 
+# Define services and operations to query
+services_operations = {
+    "ec2": ["DescribeVpcs", "DescribeSubnets", "DescribeSecurityGroups"],
+    "s3": ["ListBuckets"],
+}
+
 def list_resources(service, operation, region):
     """
     Generic function to list resources for a specific service and operation in a region.
@@ -26,35 +32,14 @@ def list_resources(service, operation, region):
         console.print(f"[bold yellow]Operation {operation} not found for {service}[/bold yellow]")
     return []
 
-def get_available_operations(service):
-    """
-    Retrieve all valid operations for a given AWS service.
-    """
-    session = boto3.Session()
-    try:
-        client = session.client(service)
-        return client.meta.service_model.operation_names
-    except Exception as e:
-        console.print(f"[bold red]Error retrieving operations for {service}: {e}[/bold red]")
-        return []
-
 def scan_resources():
     """
-    Scan AWS account for specific resources using dynamic service and operation queries.
+    Scan AWS account for specific resources using predefined services and operations.
     """
     # Initialize AWS session and regions
     session = boto3.Session()
     regions = [region["RegionName"] for region in session.client("ec2").describe_regions()["Regions"]]
     console.print(f"[bold cyan]Scanning resources in regions: {', '.join(regions)}[/bold cyan]")
-
-    # Define services to query
-    services = ["ec2", "s3"]
-    services_operations = {}
-
-    # Dynamically fetch operations for each service
-    for service in services:
-        operations = get_available_operations(service)
-        services_operations[service] = [op for op in operations if op.startswith("describe_") or op.startswith("list_")]
 
     # Display services being scanned
     console.print("\n[bold cyan]Services and operations being scanned:[/bold cyan]")
@@ -76,6 +61,8 @@ def scan_resources():
                             "Operation": operation,
                             "Resource": resource,
                         })
+                else:
+                    console.print(f"[bold yellow]No resources found for {service}:{operation} in {region}[/bold yellow]")
 
     # Save results to JSON
     if all_resources:
@@ -83,7 +70,7 @@ def scan_resources():
             json.dump(all_resources, f, indent=4)
         console.print("[bold cyan]Resources saved to aws_resources.json[/bold cyan]")
     else:
-        console.print("[bold red]No resources found.[/bold red]")
+        console.print("[bold red]No resources found. Default resources may not be included.[/bold red]")
 
     # Print results in table format
     print_resources_table(all_resources)
