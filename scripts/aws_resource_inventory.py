@@ -940,14 +940,6 @@ class AWSResourceInventory:
                 'kms_keys': make_api_call(self.security.get_kms_keys, region),
                 'secrets': make_api_call(self.security.get_secrets, region),
                 'iam_policies': make_api_call(self.security.get_iam_policies, region),
-                
-                # Database
-                'rds_instances': make_api_call(self.database.get_rds_instances, region),
-                'dynamodb_tables': make_api_call(self.database.get_dynamodb_tables, region),
-                
-                # Network
-                'vpcs': make_api_call(self.network.get_vpcs, region),
-                'load_balancers': make_api_call(self.network.get_elb_info, region)
             }
             
             self.inventory_data['regions'][region] = {
