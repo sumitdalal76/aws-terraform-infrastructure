@@ -19,7 +19,26 @@ def run_aws_list_all():
     console.print("[bold cyan]Running aws-list-all for S3 buckets...[/bold cyan]")
 
     try:
+        # First, verify AWS credentials are working
+        verify_cmd = subprocess.run(
+            ["aws", "sts", "get-caller-identity"],
+            check=True,
+            capture_output=True,
+            text=True
+        )
+        console.print(f"[bold green]AWS Credentials check:[/bold green]\n{verify_cmd.stdout}")
+
+        # List AWS version and configuration
+        aws_version = subprocess.run(
+            ["aws", "--version"],
+            check=True,
+            capture_output=True,
+            text=True
+        )
+        console.print(f"[bold blue]AWS CLI version:[/bold blue]\n{aws_version.stdout}")
+
         # Run aws-list-all with debug output
+        console.print("[bold yellow]Running aws-list-all command...[/bold yellow]")
         result = subprocess.run(
             [
                 "aws-list-all",
@@ -27,21 +46,41 @@ def run_aws_list_all():
                 "--service", "s3",
                 "--operation", "ListBuckets",
                 "--directory", output_dir,
-                "--debug"  # Added debug flag for more information
+                "--debug",
+                "--verbose"  # Added verbose flag
             ],
             check=True,
             capture_output=True,
-            text=True
+            text=True,
+            env={**os.environ, 'AWS_DEFAULT_OUTPUT': 'json'}  # Ensure JSON output
         )
-        # Print debug output
-        console.print(f"[bold green]Command output:[/bold green]\n{result.stdout}")
+        
+        # Print all output for debugging
+        if result.stdout:
+            console.print(f"[bold green]Command output:[/bold green]\n{result.stdout}")
         if result.stderr:
             console.print(f"[bold yellow]Debug output:[/bold yellow]\n{result.stderr}")
 
     except subprocess.CalledProcessError as e:
-        console.print(f"[bold red]Error running aws-list-all: {e}[/bold red]")
+        console.print(f"[bold red]Error running command: {e.cmd}[/bold red]")
         if e.output:
-            console.print(f"[bold red]Error output: {e.output.decode()}[/bold red]")
+            console.print(f"[bold red]Command output: {e.output.decode()}[/bold red]")
+        if e.stderr:
+            console.print(f"[bold red]Error output: {e.stderr.decode()}[/bold red]")
+        
+        # Try to list buckets directly with AWS CLI as fallback
+        try:
+            console.print("[bold yellow]Attempting to list buckets with AWS CLI as fallback...[/bold yellow]")
+            aws_s3_ls = subprocess.run(
+                ["aws", "s3", "ls"],
+                check=True,
+                capture_output=True,
+                text=True
+            )
+            console.print(f"[bold green]AWS S3 buckets:[/bold green]\n{aws_s3_ls.stdout}")
+        except subprocess.CalledProcessError as aws_error:
+            console.print(f"[bold red]Error listing buckets with AWS CLI: {aws_error}[/bold red]")
+        
         raise
 
     return output_dir
