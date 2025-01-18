@@ -41,9 +41,14 @@ def scan_service(service_config):
         table = Table(title=f"AWS {service_config['title']}")
         results = []
         
+        # Add columns from service config
+        for col in service_config['columns']:
+            table.add_column(col)
+        
         if service_config.get('regional', False):
             # For regional services, scan each region
             regions = get_regions()
+            has_resources = False
             for region in regions:
                 command = service_config['command'](region)
                 output = run_aws_command(command)
@@ -52,23 +57,30 @@ def scan_service(service_config):
                     # Process output
                     for line in output.split('\n'):
                         if line and not line.isspace():
-                            table.add_row(region, line.strip())
+                            has_resources = True
+                            table.add_row(region, *line.strip().split('\t'))
                             results.append({
                                 'Region': region,
                                 'Output': line.strip()
                             })
+            
+            if not has_resources:
+                table.add_row("No resources found")
         else:
             # For global services like S3
             command = service_config['command']()
             output = run_aws_command(command)
             
             # Process output
-            for line in output.split('\n'):
-                if line and not line.isspace():
-                    table.add_row(line.strip())
-                    results.append({
-                        'Output': line.strip()
-                    })
+            if output:
+                for line in output.split('\n'):
+                    if line and not line.isspace():
+                        table.add_row(*line.strip().split())
+                        results.append({
+                            'Output': line.strip()
+                        })
+            else:
+                table.add_row("No resources found")
         
         console.print(table)
         return results
