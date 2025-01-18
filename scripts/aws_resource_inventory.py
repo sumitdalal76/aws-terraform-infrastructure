@@ -219,62 +219,146 @@ class AWSResourceInventory:
         console.print("\n[bold cyan]=== AWS Resource Summary ===[/bold cyan]\n")
 
         # Global Resources Summary
-        global_resources = Table(title="Global Resources", show_header=True, header_style="bold magenta")
-        global_resources.add_column("Service")
-        global_resources.add_column("Count")
-        global_resources.add_row("S3 Buckets", str(len(inventory_data['s3_buckets'])))
-        global_resources.add_row("Route53 Zones", str(len(inventory_data['route53_zones'])))
-        console.print(global_resources)
-        console.print("\n")
+        console.print("[bold blue]Global Resources[/bold blue]")
+        
+        # S3 Buckets
+        if inventory_data['s3_buckets']:
+            s3_table = Table(title="S3 Buckets", show_header=True, header_style="bold magenta")
+            s3_table.add_column("Bucket Name")
+            s3_table.add_column("Creation Date")
+            for bucket in inventory_data['s3_buckets']:
+                s3_table.add_row(bucket['Name'], bucket['CreationDate'])
+            console.print(s3_table)
+            console.print("\n")
+
+        # Route53 Zones
+        if inventory_data['route53_zones']:
+            route53_table = Table(title="Route53 Hosted Zones", show_header=True, header_style="bold magenta")
+            route53_table.add_column("Zone Name")
+            route53_table.add_column("Zone ID")
+            route53_table.add_column("Record Count")
+            route53_table.add_column("Type")
+            for zone in inventory_data['route53_zones']:
+                zone_type = "Private" if zone['Private'] else "Public"
+                route53_table.add_row(zone['Name'], zone['Id'], str(zone['RecordCount']), zone_type)
+            console.print(route53_table)
+            console.print("\n")
 
         # Regional Resources Summary
         for region, resources in inventory_data['regions'].items():
-            regional_table = Table(title=f"Region: {region}", show_header=True, header_style="bold magenta")
-            regional_table.add_column("Service")
-            regional_table.add_column("Count")
-            regional_table.add_column("Details")
-
-            # VPCs
-            vpc_count = len(resources['vpcs'])
-            vpc_details = f"Default VPCs: {sum(1 for vpc in resources['vpcs'] if vpc['IsDefault'])}"
-            regional_table.add_row("VPCs", str(vpc_count), vpc_details)
-
+            if not any(resources.values()):  # Skip regions with no resources
+                continue
+                
+            console.print(f"[bold green]Region: {region}[/bold green]")
+            
             # EC2 Instances
-            ec2_count = len(resources['ec2_instances'])
-            running_instances = sum(1 for inst in resources['ec2_instances'] if inst['State'] == 'running')
-            ec2_details = f"Running: {running_instances}"
-            regional_table.add_row("EC2 Instances", str(ec2_count), ec2_details)
+            if resources['ec2_instances']:
+                ec2_table = Table(title="EC2 Instances", show_header=True, header_style="bold magenta")
+                ec2_table.add_column("Instance ID")
+                ec2_table.add_column("Type")
+                ec2_table.add_column("State")
+                ec2_table.add_column("Launch Time")
+                ec2_table.add_column("Name")
+                
+                for instance in resources['ec2_instances']:
+                    name = next((tag['Value'] for tag in instance['Tags'] if tag['Key'] == 'Name'), 'N/A')
+                    ec2_table.add_row(
+                        instance['InstanceId'],
+                        instance['InstanceType'],
+                        instance['State'],
+                        instance['LaunchTime'],
+                        name
+                    )
+                console.print(ec2_table)
+                console.print("\n")
 
             # RDS Instances
-            rds_count = len(resources['rds_instances'])
-            rds_details = f"Available: {sum(1 for db in resources['rds_instances'] if db['Status'] == 'available')}"
-            regional_table.add_row("RDS Instances", str(rds_count), rds_details)
+            if resources['rds_instances']:
+                rds_table = Table(title="RDS Instances", show_header=True, header_style="bold magenta")
+                rds_table.add_column("Identifier")
+                rds_table.add_column("Engine")
+                rds_table.add_column("Class")
+                rds_table.add_column("Status")
+                
+                for db in resources['rds_instances']:
+                    rds_table.add_row(
+                        db['DBInstanceIdentifier'],
+                        db['Engine'],
+                        db['DBInstanceClass'],
+                        db['Status']
+                    )
+                console.print(rds_table)
+                console.print("\n")
 
             # Lambda Functions
-            lambda_count = len(resources['lambda_functions'])
-            regional_table.add_row("Lambda Functions", str(lambda_count), "")
+            if resources['lambda_functions']:
+                lambda_table = Table(title="Lambda Functions", show_header=True, header_style="bold magenta")
+                lambda_table.add_column("Function Name")
+                lambda_table.add_column("Runtime")
+                lambda_table.add_column("Memory (MB)")
+                lambda_table.add_column("Timeout (s)")
+                
+                for func in resources['lambda_functions']:
+                    lambda_table.add_row(
+                        func['FunctionName'],
+                        func['Runtime'],
+                        str(func['Memory']),
+                        str(func['Timeout'])
+                    )
+                console.print(lambda_table)
+                console.print("\n")
 
             # DynamoDB Tables
-            dynamodb_count = len(resources['dynamodb_tables'])
-            dynamodb_details = f"Active: {sum(1 for table in resources['dynamodb_tables'] if table['Status'] == 'ACTIVE')}"
-            regional_table.add_row("DynamoDB Tables", str(dynamodb_count), dynamodb_details)
+            if resources['dynamodb_tables']:
+                dynamo_table = Table(title="DynamoDB Tables", show_header=True, header_style="bold magenta")
+                dynamo_table.add_column("Table Name")
+                dynamo_table.add_column("Status")
+                dynamo_table.add_column("Item Count")
+                dynamo_table.add_column("Size (Bytes)")
+                dynamo_table.add_column("Provisioned Throughput")
+                
+                for table in resources['dynamodb_tables']:
+                    dynamo_table.add_row(
+                        table['TableName'],
+                        table['Status'],
+                        str(table['ItemCount']),
+                        str(table['SizeBytes']),
+                        table['ProvisionedThroughput']
+                    )
+                console.print(dynamo_table)
+                console.print("\n")
 
             # Load Balancers
-            lb_count = len(resources['load_balancers'])
-            lb_types = {lb['Type']: 0 for lb in resources['load_balancers']}
-            for lb in resources['load_balancers']:
-                lb_types[lb['Type']] += 1
-            lb_details = ", ".join(f"{k}: {v}" for k, v in lb_types.items() if v > 0)
-            regional_table.add_row("Load Balancers", str(lb_count), lb_details)
+            if resources['load_balancers']:
+                lb_table = Table(title="Load Balancers", show_header=True, header_style="bold magenta")
+                lb_table.add_column("Name")
+                lb_table.add_column("Type")
+                lb_table.add_column("DNS Name")
+                lb_table.add_column("State")
+                
+                for lb in resources['load_balancers']:
+                    lb_table.add_row(
+                        lb['LoadBalancerName'],
+                        lb['Type'],
+                        lb['DNSName'],
+                        lb['State']
+                    )
+                console.print(lb_table)
+                console.print("\n")
 
             # ECS Clusters
-            ecs_count = len(resources['ecs_clusters'])
-            total_services = sum(cluster['ServiceCount'] for cluster in resources['ecs_clusters'])
-            ecs_details = f"Total Services: {total_services}"
-            regional_table.add_row("ECS Clusters", str(ecs_count), ecs_details)
-
-            console.print(regional_table)
-            console.print("\n")
+            if resources['ecs_clusters']:
+                ecs_table = Table(title="ECS Clusters", show_header=True, header_style="bold magenta")
+                ecs_table.add_column("Cluster ARN")
+                ecs_table.add_column("Service Count")
+                
+                for cluster in resources['ecs_clusters']:
+                    ecs_table.add_row(
+                        cluster['ClusterArn'],
+                        str(cluster['ServiceCount'])
+                    )
+                console.print(ecs_table)
+                console.print("\n")
 
     def print_scan_scope(self):
         """Print the scope of the inventory scan."""
@@ -329,11 +413,11 @@ class AWSResourceInventory:
         
         # Get region-specific resources
         for region in self.regions:
-            logger.info(f"Scanning region: {region}")
+            console.print(f"Scanning region: {region}")
             
             # Collect all regional resources
             self.inventory_data['regions'][region] = {
-                'vpcs': self.get_vpcs(region),
+                'vpcs': [vpc for vpc in self.get_vpcs(region) if not vpc['IsDefault']],
                 'ec2_instances': self.get_ec2_instances(region),
                 'rds_instances': self.get_rds_instances(region),
                 'lambda_functions': self.get_lambda_functions(region),
