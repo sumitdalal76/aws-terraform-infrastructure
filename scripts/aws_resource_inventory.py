@@ -54,7 +54,7 @@ def parse_and_display(output_dir):
                 with open(file_path, "r") as f:
                     try:
                         data = json.load(f)
-                        for item ain data.get("Resources", []):
+                        for item in data.get("Resources", []):
                             all_resources.append({
                                 "Region": data.get("Region"),
                                 "Service": data.get("Service"),
