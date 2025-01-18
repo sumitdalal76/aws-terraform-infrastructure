@@ -1,7 +1,7 @@
 from typing import Dict, List
 from botocore.exceptions import ClientError
 import logging
-from ..utils.aws_utils import boto3_config, make_api_call
+from utils.aws_utils import boto3_config, make_api_call
 
 logger = logging.getLogger(__name__)
 
