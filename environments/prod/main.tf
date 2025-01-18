@@ -67,19 +67,10 @@ module "loadbalancer" {
   public_subnet_ids = module.networking.public_subnet_ids
   security_group_id = module.security.alb_sg_id
   certificate_arn   = module.acm.certificate_arn
+  zone_id          = module.dns.zone_id
+  domain_name      = var.domain_name
 
   depends_on = [module.acm]
-}
-
-# Update DNS after load balancer is created
-module "dns_records" {
-  source = "../../modules/dns_records"
-
-  zone_id      = module.dns.zone_id
-  domain_name  = var.domain_name
-  alb_dns_name = module.loadbalancer.alb_dns_name
-
-  depends_on = [module.loadbalancer]
 }
 
 module "ec2" {

@@ -21,13 +21,13 @@ Infrastructure as Code (IaC) for AWS using Terraform modules and GitHub Actions 
 │   ├── loadbalancer/  # ALB Configuration
 │   ├── acm/          # SSL Certificate
 │   └── dns/          # Route53 Setup
-│   └── dns_records/  # Route53 Records
 │   └── ec2/          # EC2 Instance
 ├── environments/
 │   └── prod/         # Production Environment
 ├── scripts/
 │   └── update_nameservers.py  # Python script to update DNS records
-│   └── aws-inventory.py  # Python script to generate AWS inventory
+│   └── aws_resource_inventory.py  # Python script to generate inventory using AWS API
+│   └── service_config.py  # Python script to generate service configuration
 └── .github/
     └── workflows/    # CI/CD Github Actions Workflows
         └── terraform.yml
@@ -62,9 +62,59 @@ Infrastructure as Code (IaC) for AWS using Terraform modules and GitHub Actions 
 ## Results
 
 ### Infrastructure Output
-![Terraform Output](screenshots/output.png)
+![Terraform Output](screenshots/output1.png)
+![Terraform Output](screenshots/output2.png)
+
+## Usage Example
+
+Customize `terraform.tfvars` for multiple environments:
+
+```hcl
+# Region and Environment
+aws_region    = "ca-central-1"
+project_name  = "prod"
+environment   = "prod"
+
+# Network Configuration
+vpc_cidr = "10.0.0.0/16"
+public_subnet_cidrs = [
+  "10.0.1.0/24",
+  "10.0.2.0/24"
+]
+private_subnet_cidrs = [
+  "10.0.3.0/24",
+  "10.0.4.0/24"
+]
+
+# Instance Configuration
+ami_id = "ami-0ea18256de20ecdfc"  # Ubuntu 20.04 LTS in ca-central-1
+
+# Domain Configuration
+apex_domain = "devopslab.buzz"
+domain_name = "myapp-prod.devopslab.buzz"
+
+# DNS Provider Configuration
+porkbun_api_key    = "pk1_d0c9d2b69a5f3ae22049aa93d5733399906db8d29572a9cae34bbd39f16d2bec"
+porkbun_secret_key = "sk1_5ef1576233ff6ceeed330b0e8d055530950a5a2e83ea6bbc69a68c9ef0676142"
+```
 
 ### Access Points
 - HTTPS: https://myapp-prod.devopslab.buzz
 - ALB: Application Load Balancer
 - EC2: Private Instance in VPC
+
+## How to Use This Repository
+
+1. **Fork the Repository**
+2. **Configure GitHub Actions**
+   - Add required secrets in repository settings:
+     - `AWS_ROLE_ARN`
+     - `PORKBUN_API_KEY` to update domain nameservers
+     - `PORKBUN_SECRET_KEY`
+
+3. **Use GitHub Actions Workflows**
+   - `terraform-deploy.yml`: Deploy infrastructure
+   - `terraform-destroy.yml`: Destroy infrastructure
+   - `aws-inventory.yml`: List AWS resources
+
+For detailed workflow information, check the [GitHub Actions Workflows](#github-actions-workflows) section above.

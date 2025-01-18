@@ -27,3 +27,13 @@ variable "certificate_arn" {
   description = "ARN of SSL certificate for HTTPS listener"
   type        = string
 }
+
+variable "zone_id" {
+  description = "Route53 zone ID"
+  type        = string
+}
+
+variable "domain_name" {
+  description = "Domain name for the ALB"
+  type        = string
+}

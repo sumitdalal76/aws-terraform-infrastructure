@@ -61,3 +61,12 @@ resource "aws_lb_listener" "https" {
     target_group_arn = aws_lb_target_group.main.arn
   }
 }
+
+# Create CNAME record for ALB
+resource "aws_route53_record" "alb" {
+  zone_id = var.zone_id
+  name    = var.domain_name
+  type    = "CNAME"
+  ttl     = "300"
+  records = [aws_lb.main.dns_name]
+}
