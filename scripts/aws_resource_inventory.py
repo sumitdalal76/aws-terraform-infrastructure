@@ -53,21 +53,13 @@ def scan_service(service_config):
         table = Table(
             title=f"AWS {service_config['title']}", 
             show_header=True,
-            header_style="bold",
-            show_edge=False,
-            pad_edge=False,
-            collapse_padding=True
+            expand=True  # This will make table use full width
         )
         results = []
         
         # Add columns from service config
         for col in service_config['columns']:
-            table.add_column(
-                col, 
-                justify="left",
-                no_wrap=True,
-                overflow="fold"
-            )
+            table.add_column(col, no_wrap=True)  # no_wrap prevents text wrapping
         
         if service_config.get('regional', False):
             regions = get_regions()
