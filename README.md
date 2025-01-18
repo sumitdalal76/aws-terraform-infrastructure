@@ -118,3 +118,8 @@ porkbun_secret_key = "sk1_5ef1576233ff6ceeed330b0e8d055530950a5a2e83ea6bbc69a68c
    - `aws-inventory.yml`: List AWS resources
 
 For detailed workflow information, check the [GitHub Actions Workflows](#github-actions-workflows) section above.
+  
+## Demo Video
+Watch the complete infrastructure deployment demonstration.
+
+[![AWS Infrastructure Deployment Demo](https://img.youtube.com/vi/X_4e6vy0ndE/0.jpg)](https://youtu.be/X_4e6vy0ndE)
