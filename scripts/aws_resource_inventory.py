@@ -2,9 +2,9 @@ import subprocess
 import json
 from rich.console import Console
 from rich.table import Table
-from service_configs import SERVICE_CONFIGS, SERVICES_TO_SCAN
+from service_configs import SERVICE_CONFIGS
 
-# Initialize console for better terminal output
+# Initialize console for output
 console = Console()
 
 def run_aws_command(command_list):
@@ -20,7 +20,7 @@ def run_aws_command(command_list):
         )
         return result.stdout.strip()
     except subprocess.CalledProcessError as e:
-        console.print(f"[bold red]Error running AWS command: {str(e)}[/bold red]")
+        console.print(f"Error running AWS command: {str(e)}")
         return ""
 
 def get_regions():
@@ -74,29 +74,23 @@ def scan_service(service_config):
         return results
 
     except Exception as e:
-        console.print(f"[bold red]Error scanning {service_config['title']}: {str(e)}[/bold red]")
+        console.print(f"Error scanning {service_config['title']}: {str(e)}")
         return []
 
-def scan_aws_resources(services=None):
+def scan_aws_resources():
     """
     Main function to scan AWS resources
     """
-    if services is None:
-        services = SERVICE_CONFIGS.keys()
-    
     all_results = {}
     
-    for service in services:
-        if service in SERVICE_CONFIGS:
-            console.print(f"\n[bold cyan]Scanning {SERVICE_CONFIGS[service]['title']}...[/bold cyan]")
-            results = scan_service(SERVICE_CONFIGS[service])
-            all_results[service] = results
-        else:
-            console.print(f"[bold red]Service {service} not configured[/bold red]")
+    for service, config in SERVICE_CONFIGS.items():
+        console.print(f"\nScanning {config['title']}...")
+        results = scan_service(config)
+        all_results[service] = results
     
     # Save results to file
     with open('aws_inventory.json', 'w') as f:
         json.dump(all_results, f, indent=2)
 
 if __name__ == "__main__":
-    scan_aws_resources(SERVICES_TO_SCAN)
+    scan_aws_resources()

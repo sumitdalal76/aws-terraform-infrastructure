@@ -1,27 +1,38 @@
-# Just list the services you want to scan
-SERVICES_TO_SCAN = ['s3', 'ec2']
+# AWS CLI commands for each service
+AWS_COMMANDS = {
+    's3': {
+        'command': lambda: ["aws", "s3", "ls"],
+        'regional': False
+    },
+    'vpc': {
+        'command': lambda region: ["aws", "ec2", "describe-vpcs", "--region", region, "--query", "Vpcs[].[VpcId,Tags[?Key=='Name'].Value|[0],CidrBlock,State,IsDefault,OwnerId]", "--output", "text"],
+        'regional': True
+    },
+    'ec2': {
+        'command': lambda region: ["aws", "ec2", "describe-instances", "--region", region, "--output", "text"],
+        'regional': True
+    },
+    'rds': {
+        'command': lambda region: ["aws", "rds", "describe-db-instances", "--region", region, "--output", "text"],
+        'regional': True
+    },
+    'lambda': {
+        'command': lambda region: ["aws", "lambda", "list-functions", "--region", region, "--output", "text"],
+        'regional': True
+    }
+}
 
-# Basic configuration that works for any service
 def get_service_config(service_name):
     """
-    Get basic configuration for any AWS service
+    Get configuration for any AWS service
     """
-    if service_name == 's3':
-        return {
-            'title': 'S3 Buckets',
-            'regional': False,
-            'command': lambda: ["aws", "s3", "ls"]
-        }
-    else:
-        return {
-            'title': f'{service_name.upper()}',
-            'regional': True,
-            'command': lambda region: [
-                "aws", service_name, "describe-" + service_name + "s",
-                "--region", region,
-                "--output", "text"
-            ]
-        }
+    if service_name not in AWS_COMMANDS:
+        raise ValueError(f"Service {service_name} not configured. Please add it to AWS_COMMANDS.")
+    
+    return {
+        'title': f'{service_name.upper()}',
+        **AWS_COMMANDS[service_name]  # Unpacks command and regional settings
+    }
 
 # Generate configs for all services
-SERVICE_CONFIGS = {service: get_service_config(service) for service in SERVICES_TO_SCAN}
+SERVICE_CONFIGS = {service: get_service_config(service) for service in AWS_COMMANDS.keys()}
