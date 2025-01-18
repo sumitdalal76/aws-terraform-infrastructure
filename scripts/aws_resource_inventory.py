@@ -1,4 +1,5 @@
 import subprocess
+import json
 from rich.console import Console
 from rich.table import Table
 from service_configs import SERVICE_CONFIGS, SERVICES_TO_SCAN
@@ -38,6 +39,7 @@ def scan_service(service_config):
     """
     try:
         table = Table(title=f"AWS {service_config['title']}")
+        results = []
         
         # Add columns to table
         for col in service_config['columns']:
@@ -57,6 +59,10 @@ def scan_service(service_config):
                             values = line.strip().split('\t')
                             if len(values) >= len(service_config['columns']) - 1:  # -1 for region
                                 table.add_row(region, *values)
+                                results.append({
+                                    'Region': region,
+                                    'Values': values
+                                })
         else:
             # For global services
             command = service_config['command']()
@@ -68,11 +74,16 @@ def scan_service(service_config):
                     values = line.strip().split(' ', 1)
                     if len(values) >= len(service_config['columns']):
                         table.add_row(*values)
+                        results.append({
+                            'Values': values
+                        })
         
         console.print(table)
+        return results
 
     except Exception as e:
         console.print(f"[bold red]Error scanning {service_config['title']}: {str(e)}[/bold red]")
+        return []
 
 def scan_aws_resources(services=None):
     """
@@ -81,12 +92,19 @@ def scan_aws_resources(services=None):
     if services is None:
         services = SERVICE_CONFIGS.keys()
     
+    all_results = {}
+    
     for service in services:
         if service in SERVICE_CONFIGS:
             console.print(f"\n[bold cyan]Scanning {SERVICE_CONFIGS[service]['title']}...[/bold cyan]")
-            scan_service(SERVICE_CONFIGS[service])
+            results = scan_service(SERVICE_CONFIGS[service])
+            all_results[service] = results
         else:
             console.print(f"[bold red]Service {service} not configured[/bold red]")
+    
+    # Save results to file
+    with open('aws_inventory.json', 'w') as f:
+        json.dump(all_results, f, indent=2)
 
 if __name__ == "__main__":
     scan_aws_resources(SERVICES_TO_SCAN)
