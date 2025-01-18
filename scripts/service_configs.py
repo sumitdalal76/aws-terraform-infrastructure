@@ -30,5 +30,30 @@ AWS_COMMANDS = {
         'command': lambda region: ["aws", "lambda", "list-functions", "--region", region, "--output", "text"],
         'regional': True,
         'columns': ['Region', 'Function Name', 'Runtime']
+    },
+    'iam': {
+        'command': lambda: ["aws", "iam", "list-users", "--query", "Users[].[UserName,CreateDate,PasswordLastUsed]", "--output", "text"],
+        'regional': False,
+        'columns': ['User Name', 'Created', 'Last Used']
+    },
+    'cloudfront': {
+        'command': lambda: ["aws", "cloudfront", "list-distributions", "--query", "DistributionList.Items[].[Id,DomainName,Enabled,Status]", "--output", "text"],
+        'regional': False,
+        'columns': ['ID', 'Domain Name', 'Enabled', 'Status']
+    },
+    'route53': {
+        'command': lambda: ["aws", "route53", "list-hosted-zones", "--query", "HostedZones[].[Id,Name,Config.PrivateZone]", "--output", "text"],
+        'regional': False,
+        'columns': ['Zone ID', 'Domain Name', 'Private']
+    },
+    'eip': {
+        'command': lambda region: ["aws", "ec2", "describe-addresses", "--region", region, "--query", "Addresses[].[PublicIp,InstanceId,Domain]", "--output", "text"],
+        'regional': True,
+        'columns': ['Region', 'Public IP', 'Instance ID', 'Domain']
+    },
+    'elb': {
+        'command': lambda region: ["aws", "elbv2", "describe-load-balancers", "--region", region, "--query", "LoadBalancers[].[LoadBalancerName,DNSName,State.Code]", "--output", "text"],
+        'regional': True,
+        'columns': ['Region', 'Name', 'DNS Name', 'State']
     }
 }
