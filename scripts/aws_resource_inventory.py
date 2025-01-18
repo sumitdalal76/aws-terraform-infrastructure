@@ -77,7 +77,11 @@ def scan_service(service_config):
                 if i < len(column_widths):
                     column_widths[i] = max(column_widths[i], len(str(value)))
 
-        header = "| " + " | ".join(f" {col:{width}} " for col, width in zip(service_config['columns'], column_widths)) + " |"
+        # Add padding to column widths
+        column_widths = [width + 2 for width in column_widths]  # Add 2 for spacing
+
+        # Print header and rows with consistent spacing
+        header = "| " + " | ".join(f"{col:^{width}}" for col, width in zip(service_config['columns'], column_widths)) + " |"
         separator = "|-" + "-|-".join("-" * width for width in column_widths) + "-|"
         
         console.print(header)
@@ -85,7 +89,7 @@ def scan_service(service_config):
         
         if all_rows:
             for values in all_rows:
-                row = "| " + " | ".join(f" {str(v):{width}} " for v, width in zip(values, column_widths)) + " |"
+                row = "| " + " | ".join(f"{str(v):^{width}}" for v, width in zip(values, column_widths)) + " |"
                 console.print(row)
                 results.append({'Output': "\t".join(str(v) for v in values)})
         else:
