@@ -4,14 +4,12 @@ from tabulate import tabulate
 from colorama import init, Fore, Style
 import json
 import concurrent.futures
-import re
-from typing import Dict, List, Any, Set
 import time
 import random
 
 init()  # Initialize colorama for cross-platform colored output
 
-def get_all_regions() -> List[str]:
+def get_all_regions():
     """Get list of all AWS regions."""
     try:
         ec2 = boto3.client('ec2', region_name='us-east-1')
@@ -21,131 +19,192 @@ def get_all_regions() -> List[str]:
         print(f"{Fore.RED}Error fetching regions: {e}{Style.RESET_ALL}")
         return ['us-east-1']  # Fallback to default region
 
-def get_available_services() -> List[str]:
-    """Get list of all available AWS services."""
-    session = boto3.Session()
-    return session.get_available_services()
-
-def get_service_operations(service: str) -> Set[str]:
-    """Get list of operations for a service that might list resources."""
-    try:
-        client = boto3.client(service, region_name='us-east-1')
-        operations = set()
-        
-        for operation in client.meta.service_model.operation_names:
-            # Look for operations that might list resources
-            if any(pattern in operation.lower() for pattern in [
-                'describe', 'list', 'get', 'search'
-            ]) and not any(exclude in operation.lower() for exclude in [
-                'password', 'metric', 'log', 'token', 'parameter'
-            ]):
-                operations.add(operation)
-                
-        return operations
-    except (ClientError, EndpointConnectionError):
-        return set()
-
-def extract_resources(response: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Extract resources from an AWS API response."""
+def scan_ec2_resources(region):
+    """Scan EC2 resources in a region."""
     resources = []
-    
-    # Look for common patterns in response keys that might contain resources
-    resource_keys = [k for k in response.keys() if any(
-        pattern in k.lower() for pattern in [
-            'arns', 'resources', 'ids', 'names', 'list',
-            'set', 'results', 'items', 'entries'
-        ]
-    )]
-    
-    for key in resource_keys:
-        if isinstance(response[key], list):
-            for item in response[key]:
-                if isinstance(item, dict):
-                    # Try to find an identifier
-                    identifier = None
-                    for id_key in ['Arn', 'Id', 'Name', 'ResourceId', 'ResourceArn']:
-                        if id_key in item:
-                            identifier = item[id_key]
-                            break
-                    
-                    if identifier:
-                        resources.append({
-                            'identifier': identifier,
-                            'details': item
-                        })
-    
-    return resources
-
-def scan_service_region(service: str, region: str, operation: str) -> Dict[str, Any]:
-    """Scan a specific service in a region using the given operation."""
     try:
-        client = boto3.client(service, region_name=region)
-        method = getattr(client, operation)
+        ec2 = boto3.client('ec2', region_name=region)
         
+        # Get instances
         try:
-            response = method()
-            if isinstance(response, dict):
-                resources = extract_resources(response)
-                if resources:
-                    return {
-                        'service': service,
-                        'region': region,
-                        'operation': operation,
-                        'resources': resources
-                    }
+            instances = ec2.describe_instances()
+            for reservation in instances.get('Reservations', []):
+                for instance in reservation.get('Instances', []):
+                    resources.append({
+                        'type': 'EC2 Instance',
+                        'id': instance['InstanceId'],
+                        'details': instance
+                    })
         except ClientError as e:
-            if 'AccessDenied' in str(e):
-                print(f"{Fore.YELLOW}Access Denied: {service}.{operation} in {region}{Style.RESET_ALL}")
-            return None
-        
+            if 'AccessDenied' not in str(e):
+                print(f"{Fore.RED}Error scanning EC2 instances in {region}: {e}{Style.RESET_ALL}")
+
+        # Get VPCs
+        try:
+            vpcs = ec2.describe_vpcs()
+            for vpc in vpcs.get('Vpcs', []):
+                resources.append({
+                    'type': 'VPC',
+                    'id': vpc['VpcId'],
+                    'details': vpc
+                })
+        except ClientError as e:
+            if 'AccessDenied' not in str(e):
+                print(f"{Fore.RED}Error scanning VPCs in {region}: {e}{Style.RESET_ALL}")
+
+        # Get Subnets
+        try:
+            subnets = ec2.describe_subnets()
+            for subnet in subnets.get('Subnets', []):
+                resources.append({
+                    'type': 'Subnet',
+                    'id': subnet['SubnetId'],
+                    'details': subnet
+                })
+        except ClientError as e:
+            if 'AccessDenied' not in str(e):
+                print(f"{Fore.RED}Error scanning Subnets in {region}: {e}{Style.RESET_ALL}")
+
+        # Get Security Groups
+        try:
+            security_groups = ec2.describe_security_groups()
+            for sg in security_groups.get('SecurityGroups', []):
+                resources.append({
+                    'type': 'Security Group',
+                    'id': sg['GroupId'],
+                    'details': sg
+                })
+        except ClientError as e:
+            if 'AccessDenied' not in str(e):
+                print(f"{Fore.RED}Error scanning Security Groups in {region}: {e}{Style.RESET_ALL}")
+
     except Exception as e:
-        if not isinstance(e, (ClientError, EndpointConnectionError)):
-            print(f"{Fore.RED}Error scanning {service}.{operation} in {region}: {e}{Style.RESET_ALL}")
-    return None
+        print(f"{Fore.RED}Error scanning EC2 resources in {region}: {e}{Style.RESET_ALL}")
+    
+    return region, resources
+
+def scan_elb_resources(region):
+    """Scan ELB resources in a region."""
+    resources = []
+    try:
+        elb = boto3.client('elbv2', region_name=region)
+        
+        # Get Load Balancers
+        try:
+            lbs = elb.describe_load_balancers()
+            for lb in lbs.get('LoadBalancers', []):
+                resources.append({
+                    'type': 'Load Balancer',
+                    'id': lb['LoadBalancerArn'],
+                    'details': lb
+                })
+        except ClientError as e:
+            if 'AccessDenied' not in str(e):
+                print(f"{Fore.RED}Error scanning Load Balancers in {region}: {e}{Style.RESET_ALL}")
+
+        # Get Target Groups
+        try:
+            target_groups = elb.describe_target_groups()
+            for tg in target_groups.get('TargetGroups', []):
+                resources.append({
+                    'type': 'Target Group',
+                    'id': tg['TargetGroupArn'],
+                    'details': tg
+                })
+        except ClientError as e:
+            if 'AccessDenied' not in str(e):
+                print(f"{Fore.RED}Error scanning Target Groups in {region}: {e}{Style.RESET_ALL}")
+
+    except Exception as e:
+        print(f"{Fore.RED}Error scanning ELB resources in {region}: {e}{Style.RESET_ALL}")
+    
+    return region, resources
+
+def scan_rds_resources(region):
+    """Scan RDS resources in a region."""
+    resources = []
+    try:
+        rds = boto3.client('rds', region_name=region)
+        
+        # Get DB Instances
+        try:
+            instances = rds.describe_db_instances()
+            for instance in instances.get('DBInstances', []):
+                resources.append({
+                    'type': 'RDS Instance',
+                    'id': instance['DBInstanceIdentifier'],
+                    'details': instance
+                })
+        except ClientError as e:
+            if 'AccessDenied' not in str(e):
+                print(f"{Fore.RED}Error scanning RDS instances in {region}: {e}{Style.RESET_ALL}")
+
+    except Exception as e:
+        print(f"{Fore.RED}Error scanning RDS resources in {region}: {e}{Style.RESET_ALL}")
+    
+    return region, resources
+
+def scan_s3_resources():
+    """Scan S3 resources (global service)."""
+    resources = []
+    try:
+        s3 = boto3.client('s3')
+        
+        # Get Buckets
+        try:
+            buckets = s3.list_buckets()
+            for bucket in buckets.get('Buckets', []):
+                resources.append({
+                    'type': 'S3 Bucket',
+                    'id': bucket['Name'],
+                    'details': bucket
+                })
+        except ClientError as e:
+            if 'AccessDenied' not in str(e):
+                print(f"{Fore.RED}Error scanning S3 buckets: {e}{Style.RESET_ALL}")
+
+    except Exception as e:
+        print(f"{Fore.RED}Error scanning S3 resources: {e}{Style.RESET_ALL}")
+    
+    return 'global', resources
 
 def scan_resources():
-    """Scan AWS resources across all regions and services."""
+    """Scan AWS resources across all regions."""
     print(f"\n{Fore.BLUE}🔍 Starting AWS Resource Scanner{Style.RESET_ALL}")
     
     regions = get_all_regions()
     print(f"\n{Fore.YELLOW}📍 Scanning Regions:{Style.RESET_ALL}")
     print(', '.join(regions))
     
-    services = get_available_services()
-    print(f"\n{Fore.YELLOW}🔧 Available Services:{Style.RESET_ALL}")
-    print(', '.join(services))
-    
     all_resources = {}
     
+    # Scan S3 (global service)
+    region, s3_resources = scan_s3_resources()
+    if s3_resources:
+        all_resources['S3'] = s3_resources
+    
+    # Scan regional services
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-        futures = []
+        # Scan EC2 resources
+        ec2_futures = [executor.submit(scan_ec2_resources, region) for region in regions]
+        for future in concurrent.futures.as_completed(ec2_futures):
+            region, resources = future.result()
+            if resources:
+                all_resources[f'EC2 ({region})'] = resources
         
-        for service in services:
-            operations = get_service_operations(service)
-            
-            for region in regions:
-                for operation in operations:
-                    # Add some randomization to avoid throttling
-                    time.sleep(random.uniform(0.1, 0.3))
-                    futures.append(
-                        executor.submit(scan_service_region, service, region, operation)
-                    )
+        # Scan ELB resources
+        elb_futures = [executor.submit(scan_elb_resources, region) for region in regions]
+        for future in concurrent.futures.as_completed(elb_futures):
+            region, resources = future.result()
+            if resources:
+                all_resources[f'ELB ({region})'] = resources
         
-        for future in concurrent.futures.as_completed(futures):
-            result = future.result()
-            if result and result['resources']:
-                service = result['service']
-                if service not in all_resources:
-                    all_resources[service] = []
-                all_resources[service].extend([
-                    {
-                        'region': result['region'],
-                        'arn': resource['identifier'],
-                        'tags': resource['details'].get('Tags', []),
-                        'details': json.dumps(resource['details'], default=str)
-                    }
-                    for resource in result['resources']
-                ])
+        # Scan RDS resources
+        rds_futures = [executor.submit(scan_rds_resources, region) for region in regions]
+        for future in concurrent.futures.as_completed(rds_futures):
+            region, resources = future.result()
+            if resources:
+                all_resources[f'RDS ({region})'] = resources
     
     return all_resources
 
@@ -158,14 +217,13 @@ def print_table_format(resources):
         for resource in resource_list:
             table_data.append([
                 service,
-                resource['region'],
-                resource['arn'],
-                json.dumps(resource.get('tags', []), default=str),
-                resource.get('details', '')[:100] + '...' if len(resource.get('details', '')) > 100 else resource.get('details', '')
+                resource['type'],
+                resource['id'],
+                json.dumps(resource['details'].get('Tags', []), default=str)
             ])
     
     if table_data:
-        headers = ['Service', 'Region', 'Identifier', 'Tags', 'Details']
+        headers = ['Service', 'Type', 'Identifier', 'Tags']
         print(tabulate(table_data, headers=headers, tablefmt='grid'))
     else:
         print("No resources found")
@@ -177,11 +235,11 @@ def print_list_format(resources):
     for service, resource_list in resources.items():
         print(f"\n{Fore.YELLOW}Service: {service}{Style.RESET_ALL}")
         for resource in resource_list:
-            print(f"{Fore.CYAN}  Region: {resource['region']}{Style.RESET_ALL}")
-            print(f"  Identifier: {resource['arn']}")
-            if resource.get('tags'):
-                print(f"  Tags: {json.dumps(resource['tags'], default=str)}")
-            print(f"  Details: {resource['details']}")
+            print(f"{Fore.CYAN}  Type: {resource['type']}{Style.RESET_ALL}")
+            print(f"  Identifier: {resource['id']}")
+            if resource['details'].get('Tags'):
+                print(f"  Tags: {json.dumps(resource['details']['Tags'], default=str)}")
+            print(f"  Details: {json.dumps(resource['details'], default=str)}")
             print("  ---")
 
 def main():
