@@ -104,13 +104,249 @@ class AWSResourceInventory:
         """Print a consolidated view of all resources in table format."""
         console.print("\n[bold cyan]=== AWS Resource Summary ===[/bold cyan]\n")
 
-        # Global Resources Summary
-        console.print("[bold blue]Global Resources[/bold blue]\n")
-        
-        # IAM Resources
+        # Global Resources
         if inventory_data.get('iam'):
-            iam_data = inventory_data['iam']
+            iam_table = Table(title="IAM Resources", show_header=True, header_style="bold magenta")
+            iam_table.add_column("Resource Type")
+            iam_table.add_column("Count")
             
+            iam_data = inventory_data['iam']
+            iam_table.add_row("Users", str(len(iam_data.get('users', []))))
+            iam_table.add_row("Roles", str(len(iam_data.get('roles', []))))
+            iam_table.add_row("Groups", str(len(iam_data.get('groups', []))))
+            console.print(iam_table)
+            console.print("\n")
+
+        # Regional Resources
+        for region, resources in inventory_data['regions'].items():
+            if not any(resources.values()):
+                continue
+                
+            console.print(f"\n[bold green]Region: {region}[/bold green]")
+
+            # VPCs and Subnets
+            if resources.get('vpc_info'):
+                vpc_table = Table(title="VPCs", show_header=True, header_style="bold magenta")
+                vpc_table.add_column("VPC ID")
+                vpc_table.add_column("CIDR Block")
+                vpc_table.add_column("State")
+                vpc_table.add_column("Is Default")
+                vpc_table.add_column("Name")
+                
+                for vpc in resources['vpc_info'].get('vpcs', []):
+                    name = next((tag['Value'] for tag in vpc.get('Tags', []) if tag['Key'] == 'Name'), 'N/A')
+                    vpc_table.add_row(
+                        vpc['VpcId'],
+                        vpc['CidrBlock'],
+                        vpc['State'],
+                        str(vpc['IsDefault']),
+                        name
+                    )
+                console.print(vpc_table)
+                console.print("\n")
+
+            # DynamoDB Tables
+            if resources.get('dynamodb_tables'):
+                dynamodb_table = Table(title="DynamoDB Tables", show_header=True, header_style="bold magenta")
+                dynamodb_table.add_column("Table Name")
+                dynamodb_table.add_column("Status")
+                dynamodb_table.add_column("Items")
+                dynamodb_table.add_column("Size (Bytes)")
+                dynamodb_table.add_column("Billing Mode")
+                dynamodb_table.add_column("Provisioned Throughput")
+                
+                for table in resources['dynamodb_tables']:
+                    throughput = "On-Demand"
+                    if table['BillingMode'] == 'PROVISIONED':
+                        read_capacity = table['ProvisionedThroughput']['ReadCapacityUnits']
+                        write_capacity = table['ProvisionedThroughput']['WriteCapacityUnits']
+                        throughput = f"Read: {read_capacity}, Write: {write_capacity}"
+                    
+                    dynamodb_table.add_row(
+                        table['TableName'],
+                        table['Status'],
+                        str(table['ItemCount']),
+                        str(table['SizeBytes']),
+                        table['BillingMode'],
+                        throughput
+                    )
+                console.print(dynamodb_table)
+                console.print("\n")
+
+            # EC2 Instances
+            if resources.get('ec2_instances'):
+                ec2_table = Table(title="EC2 Instances", show_header=True, header_style="bold magenta")
+                ec2_table.add_column("Instance ID")
+                ec2_table.add_column("Name")
+                ec2_table.add_column("Type")
+                ec2_table.add_column("State")
+                ec2_table.add_column("Private IP")
+                ec2_table.add_column("Public IP")
+                
+                for instance in resources['ec2_instances']:
+                    ec2_table.add_row(
+                        instance['InstanceId'],
+                        instance['Name'],
+                        instance['InstanceType'],
+                        instance['State'],
+                        instance.get('PrivateIpAddress', 'N/A'),
+                        instance.get('PublicIpAddress', 'N/A')
+                    )
+                console.print(ec2_table)
+                console.print("\n")
+
+            # Security Groups
+            if resources.get('security_groups'):
+                sg_table = Table(title="Security Groups", show_header=True, header_style="bold magenta")
+                sg_table.add_column("Group ID")
+                sg_table.add_column("Name")
+                sg_table.add_column("VPC ID")
+                sg_table.add_column("Description")
+                sg_table.add_column("Inbound Rules")
+                
+                for sg in resources['security_groups']:
+                    inbound_rules = "\n".join([
+                        f"{rule['Protocol']}:{rule['FromPort']}-{rule['ToPort']} from {','.join(rule['Source'])}"
+                        for rule in sg['InboundRules']
+                    ])
+                    sg_table.add_row(
+                        sg['GroupId'],
+                        sg['GroupName'],
+                        sg['VpcId'],
+                        sg['Description'],
+                        inbound_rules
+                    )
+                console.print(sg_table)
+                console.print("\n")
+
+            # Load Balancers
+            if resources.get('load_balancers'):
+                lb_table = Table(title="Load Balancers", show_header=True, header_style="bold magenta")
+                lb_table.add_column("Name")
+                lb_table.add_column("Type")
+                lb_table.add_column("DNS Name")
+                lb_table.add_column("State")
+                lb_table.add_column("VPC")
+                
+                for lb in resources['load_balancers']:
+                    lb_table.add_row(
+                        lb['LoadBalancerName'],
+                        lb['Type'],
+                        lb['DNSName'],
+                        lb['State'],
+                        lb['VpcId']
+                    )
+                console.print(lb_table)
+                console.print("\n")
+
+            # RDS Instances
+            if resources.get('rds_info', {}).get('instances'):
+                rds_table = Table(title="RDS Instances", show_header=True, header_style="bold magenta")
+                rds_table.add_column("Identifier")
+                rds_table.add_column("Engine")
+                rds_table.add_column("Version")
+                rds_table.add_column("Class")
+                rds_table.add_column("Status")
+                rds_table.add_column("Multi-AZ")
+                rds_table.add_column("Storage (GB)")
+                
+                for instance in resources['rds_info']['instances']:
+                    rds_table.add_row(
+                        instance['DBInstanceIdentifier'],
+                        instance['Engine'],
+                        instance['EngineVersion'],
+                        instance['DBInstanceClass'],
+                        instance['Status'],
+                        str(instance['MultiAZ']),
+                        str(instance['AllocatedStorage'])
+                    )
+                console.print(rds_table)
+                console.print("\n")
+
+    def generate_inventory(self) -> Dict:
+        """Generate complete inventory of AWS resources."""
+        self.print_scan_scope()
+        
+        timestamp = datetime.now().isoformat()
+        
+        # Global Services
+        self.inventory_data = {
+            'timestamp': timestamp,
+            'regions': {},
+            'iam': make_api_call(self.global_services.get_iam_info),
+            's3_buckets': make_api_call(self.global_services.get_s3_buckets),
+            'route53_zones': make_api_call(self.global_services.get_route53_info),
+            'cloudfront': make_api_call(self.global_services.get_cloudfront_distributions),
+            'waf': make_api_call(self.global_services.get_waf_info)
+        }
+        
+        for region in self.regions:
+            console.print(f"Scanning region: {region}", style="dim")
+            
+            regional_data = {
+                # Networking Services
+                'vpc_info': make_api_call(self.network.get_vpcs_and_subnets, region),
+                'internet_gateways': make_api_call(self.network.get_internet_gateways, region),
+                'nat_gateways': make_api_call(self.network.get_nat_gateways, region),
+                'transit_gateways': make_api_call(self.network.get_transit_gateways, region),
+                'vpc_endpoints': make_api_call(self.network.get_vpc_endpoints, region),
+                'route_tables': make_api_call(self.network.get_route_tables, region),
+                'network_interfaces': make_api_call(self.network.get_network_interfaces, region),
+                'elastic_ips': make_api_call(self.network.get_elastic_ips, region),
+                
+                # Storage & Database Services
+                'ebs_volumes': make_api_call(self.database.get_ebs_volumes, region),
+                'efs_filesystems': make_api_call(self.database.get_efs_filesystems, region),
+                'rds_info': make_api_call(self.database.get_rds_instances, region),
+                'dynamodb_tables': make_api_call(self.database.get_dynamodb_tables, region),
+                'elasticache_clusters': make_api_call(self.database.get_elasticache_clusters, region),
+                's3_bucket_policies': make_api_call(self.database.get_s3_bucket_policies),
+                
+                # Compute & Containers
+                'ec2_instances': make_api_call(self.compute.get_ec2_instances, region),
+                'auto_scaling_groups': make_api_call(self.compute.get_auto_scaling_groups, region),
+                'launch_templates': make_api_call(self.compute.get_launch_templates, region),
+                'ecs_clusters': make_api_call(self.compute.get_ecs_info, region),
+                'eks_clusters': make_api_call(self.compute.get_eks_clusters, region),
+                'lambda_functions': make_api_call(self.compute.get_lambda_functions, region),
+                'ecr_repositories': make_api_call(self.compute.get_ecr_repositories, region),
+                
+                # Security Services
+                'security_groups': make_api_call(self.security.get_security_groups, region),
+                'network_acls': make_api_call(self.security.get_network_acls, region),
+                'acm_certificates': make_api_call(self.security.get_acm_certificates, region),
+                'kms_keys': make_api_call(self.security.get_kms_keys, region),
+                'secrets': make_api_call(self.security.get_secrets, region),
+                'iam_policies': make_api_call(self.security.get_iam_policies, region),
+            }
+            
+            self.inventory_data['regions'][region] = {
+                k: v for k, v in regional_data.items() if v is not None
+            }
+        
+        return self.inventory_data
+
+    def save_inventory(self, inventory: Dict, filename: str = 'aws_inventory.json'):
+        """Save inventory to a JSON file."""
+        with open(filename, 'w') as f:
+            json.dump(inventory, f, indent=2, default=str)
+        logger.info(f"Inventory saved to {filename}")
+
+def main():
+    console.print("[bold cyan]Starting AWS Resource Inventory...[/bold cyan]\n")
+    
+    inventory = AWSResourceInventory()
+    resources = inventory.generate_inventory()
+    
+    # Add this line to print the tables
+    inventory.print_consolidated_table(resources)
+    
+    inventory.save_inventory(resources)
+    
+    console.print("\n[bold cyan]AWS Resource Inventory Complete![/bold cyan]")
+
+if __name__ == "__main__":
+    main()
             # IAM Users
             if iam_data.get('users'):
                 users_table = Table(title="IAM Users", show_header=True, header_style="bold magenta")
