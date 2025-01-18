@@ -19,18 +19,29 @@ def run_aws_list_all():
     console.print("[bold cyan]Running aws-list-all for S3 buckets...[/bold cyan]")
 
     try:
-        subprocess.run(
+        # Run aws-list-all with debug output
+        result = subprocess.run(
             [
                 "aws-list-all",
                 "query",
                 "--service", "s3",
                 "--operation", "ListBuckets",
-                "--directory", output_dir
+                "--directory", output_dir,
+                "--debug"  # Added debug flag for more information
             ],
-            check=True
+            check=True,
+            capture_output=True,
+            text=True
         )
+        # Print debug output
+        console.print(f"[bold green]Command output:[/bold green]\n{result.stdout}")
+        if result.stderr:
+            console.print(f"[bold yellow]Debug output:[/bold yellow]\n{result.stderr}")
+
     except subprocess.CalledProcessError as e:
         console.print(f"[bold red]Error running aws-list-all: {e}[/bold red]")
+        if e.output:
+            console.print(f"[bold red]Error output: {e.output.decode()}[/bold red]")
         raise
 
     return output_dir
@@ -45,29 +56,35 @@ def parse_and_display(output_dir):
         for file in files:
             if file.endswith(".json"):
                 file_path = os.path.join(root, file)
+                console.print(f"[bold blue]Processing file: {file_path}[/bold blue]")
+                
                 with open(file_path, "r") as f:
                     try:
                         # Parse JSON data
                         data = json.load(f)
+                        console.print(f"[bold green]File contents:[/bold green]\n{json.dumps(data, indent=2)}")
+                        
                         service = data.get("Service", "Unknown")
                         operation = data.get("Operation", "Unknown")
 
-                        # Look for resource data
-                        resources = data.get("Resources", [])
-                        for resource in resources:
-                            all_resources.append({
-                                "Service": service,
-                                "Operation": operation,
-                                "Resource": json.dumps(resource, indent=2),
-                            })
-                    except json.JSONDecodeError:
-                        console.print(f"[bold red]Error parsing JSON file: {file_path}[/bold red]")
+                        # Look for Buckets in the response
+                        if "Buckets" in data.get("Resources", {}):
+                            buckets = data["Resources"]["Buckets"]
+                            for bucket in buckets:
+                                all_resources.append({
+                                    "Service": service,
+                                    "Operation": operation,
+                                    "Resource": bucket,
+                                })
+                        
+                    except json.JSONDecodeError as e:
+                        console.print(f"[bold red]Error parsing JSON file {file_path}: {e}[/bold red]")
 
     if all_resources:
         print_resources_table(all_resources)
         save_to_json(all_resources, "aws_s3_resources_summary.json")
     else:
-        console.print("[bold yellow]No resources found for S3.[/bold yellow]")
+        console.print("[bold yellow]No S3 buckets found. Please verify your AWS credentials and permissions.[/bold yellow]")
 
 def print_resources_table(resources):
     """
