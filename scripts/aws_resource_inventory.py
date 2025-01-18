@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 import boto3
-from botocore.exceptions import ClientError
+from botocore.config import Config
+from botocore.exceptions import ClientError, WaiterError
 import json
+import time
 from typing import Dict, List
 import logging
 from rich.console import Console
@@ -13,6 +15,16 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 console = Console()
 
+# Configure boto3 with retries
+boto3_config = Config(
+    retries = dict(
+        max_attempts = 3,  # Number of retry attempts
+        mode = 'adaptive'  # Exponential backoff
+    ),
+    connect_timeout = 10,  # Connection timeout in seconds
+    read_timeout = 30     # Read timeout in seconds
+)
+
 class AWSResourceInventory:
     def __init__(self):
         self.session = boto3.Session()
@@ -21,25 +33,54 @@ class AWSResourceInventory:
         
     def _get_regions(self) -> List[str]:
         """Get list of all AWS regions."""
-        ec2 = self.session.client('ec2')
-        regions = [region['RegionName'] for region in ec2.describe_regions()['Regions']]
-        return regions
+        try:
+            ec2 = self.session.client('ec2', config=boto3_config)
+            regions = [region['RegionName'] for region in ec2.describe_regions()['Regions']]
+            return regions
+        except ClientError as e:
+            logger.error(f"Error getting regions: {e}")
+            return []
+
+    def _make_api_call(self, func, *args, **kwargs):
+        """Generic method to make AWS API calls with retry logic."""
+        max_retries = 3
+        retry_delay = 1  # Initial delay in seconds
+        
+        for attempt in range(max_retries):
+            try:
+                return func(*args, **kwargs)
+            except ClientError as e:
+                if e.response['Error']['Code'] in ['RequestLimitExceeded', 'Throttling']:
+                    if attempt == max_retries - 1:
+                        logger.error(f"Max retries reached for API call: {e}")
+                        return None
+                    wait_time = retry_delay * (2 ** attempt)  # Exponential backoff
+                    logger.warning(f"API throttling, waiting {wait_time} seconds...")
+                    time.sleep(wait_time)
+                else:
+                    logger.error(f"API call failed: {e}")
+                    return None
+            except Exception as e:
+                logger.error(f"Unexpected error in API call: {e}")
+                return None
 
     def get_ec2_instances(self, region: str) -> List[Dict]:
         """Get detailed information about EC2 instances in a region."""
-        ec2 = self.session.client('ec2', region_name=region)
+        ec2 = self.session.client('ec2', region_name=region, config=boto3_config)
         try:
-            instances = ec2.describe_instances()
             instance_list = []
-            for reservation in instances['Reservations']:
-                for instance in reservation['Instances']:
-                    instance_list.append({
-                        'InstanceId': instance['InstanceId'],
-                        'InstanceType': instance['InstanceType'],
-                        'State': instance['State']['Name'],
-                        'LaunchTime': instance['LaunchTime'].isoformat(),
-                        'Tags': instance.get('Tags', [])
-                    })
+            paginator = ec2.get_paginator('describe_instances')
+            
+            for page in paginator.paginate():
+                for reservation in page['Reservations']:
+                    for instance in reservation['Instances']:
+                        instance_list.append({
+                            'InstanceId': instance['InstanceId'],
+                            'InstanceType': instance['InstanceType'],
+                            'State': instance['State']['Name'],
+                            'LaunchTime': instance['LaunchTime'].isoformat(),
+                            'Tags': instance.get('Tags', [])
+                        })
             return instance_list
         except ClientError as e:
             logger.error(f"Error getting EC2 instances in {region}: {e}")
@@ -519,26 +560,36 @@ class AWSResourceInventory:
         self.inventory_data = {
             'timestamp': timestamp,
             'regions': {},
-            's3_buckets': self.get_s3_buckets(),
-            'route53_zones': self.get_route53_info()
+            's3_buckets': self._make_api_call(self.get_s3_buckets),
+            'route53_zones': self._make_api_call(self.get_route53_info)
         }
         
         for region in self.regions:
-            console.print(f"Scanning region: {region}")
-            
-            self.inventory_data['regions'][region] = {
-                'vpcs': [vpc for vpc in self.get_vpcs(region) if not vpc['IsDefault']],
-                'ec2_instances': self.get_ec2_instances(region),
-                'rds_instances': self.get_rds_instances(region),
-                'lambda_functions': self.get_lambda_functions(region),
-                'dynamodb_tables': self.get_dynamodb_tables(region),
-                'load_balancers': self.get_elb_info(region),
-                'ecs_clusters': self.get_ecs_info(region),
-                'security_groups': self.get_security_groups(region),
-                'acm_certificates': self.get_acm_certificates(region),
-                'kms_keys': self.get_kms_keys(region)
-                # Add more services here
-            }
+            try:
+                console.print(f"Scanning region: {region}")
+                
+                # Collect all regional resources with error handling
+                regional_data = {
+                    'vpcs': self._make_api_call(self.get_vpcs, region),
+                    'ec2_instances': self._make_api_call(self.get_ec2_instances, region),
+                    'rds_instances': self._make_api_call(self.get_rds_instances, region),
+                    'lambda_functions': self._make_api_call(self.get_lambda_functions, region),
+                    'dynamodb_tables': self._make_api_call(self.get_dynamodb_tables, region),
+                    'load_balancers': self._make_api_call(self.get_elb_info, region),
+                    'ecs_clusters': self._make_api_call(self.get_ecs_info, region),
+                    'security_groups': self._make_api_call(self.get_security_groups, region),
+                    'acm_certificates': self._make_api_call(self.get_acm_certificates, region),
+                    'kms_keys': self._make_api_call(self.get_kms_keys, region)
+                }
+                
+                # Filter out None values from failed API calls
+                self.inventory_data['regions'][region] = {
+                    k: v for k, v in regional_data.items() if v is not None
+                }
+                
+            except Exception as e:
+                logger.error(f"Error scanning region {region}: {e}")
+                continue
 
         self.print_consolidated_table(self.inventory_data)
         return self.inventory_data
