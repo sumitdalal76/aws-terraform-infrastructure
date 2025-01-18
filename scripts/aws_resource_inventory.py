@@ -129,6 +129,8 @@ def main():
                 region_resources = future.result()
                 if region_resources:
                     all_resources.extend(region_resources)
+                else:
+                    console.print(f"[bold yellow]No resources found in region: {region}[/bold yellow]")
 
             except Exception as e:
                 console.print(f"[bold red]Error processing region {region}: {e}[/bold red]")
