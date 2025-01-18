@@ -8,17 +8,9 @@ SERVICE_CONFIGS = {
         'regional': False,
         'columns': [
             {'header': 'Creation Date', 'style': 'cyan'},
-            {'header': 'Bucket Name', 'style': 'green'},
-            {'header': 'Size (Bytes)', 'style': 'yellow'},
-            {'header': 'Objects Count', 'style': 'magenta'},
-            {'header': 'Versioning', 'style': 'blue'},
-            {'header': 'Encryption', 'style': 'red'}
+            {'header': 'Bucket Name', 'style': 'green'}
         ],
-        'command': lambda: [
-            "aws", "s3api", "list-buckets",
-            "--query", "Buckets[].[CreationDate,Name]",
-            "--output", "text"
-        ]
+        'command': lambda: ["aws", "s3", "ls"]
     },
     'vpc': {
         'title': 'VPCs',
@@ -26,30 +18,15 @@ SERVICE_CONFIGS = {
         'columns': [
             {'header': 'Region', 'style': 'blue'},
             {'header': 'VPC ID', 'style': 'cyan'},
-            {'header': 'VPC Name', 'style': 'white'},
             {'header': 'CIDR Block', 'style': 'green'},
             {'header': 'State', 'style': 'yellow'},
-            {'header': 'DHCP Options', 'style': 'magenta'},
-            {'header': 'Route Tables', 'style': 'red'},
-            {'header': 'Subnets', 'style': 'cyan'},
-            {'header': 'Flow Logs', 'style': 'blue'}
+            {'header': 'DHCP Options', 'style': 'magenta'}
         ],
         'command': lambda region: [
             "aws", "ec2", "describe-vpcs",
             "--region", region,
             "--filters", "Name=is-default,Values=false",
-            "--query", """
-            Vpcs[].[
-                VpcId,
-                Tags[?Key=='Name'].Value | [0] || 'Unnamed',
-                CidrBlock,
-                State,
-                DhcpOptionsId,
-                (RouteTableIds || ''),
-                (SubnetIds || ''),
-                (FlowLogs || '')
-            ]
-            """,
+            "--query", "Vpcs[].[VpcId,CidrBlock,State,DhcpOptionsId]",
             "--output", "text"
         ]
     }
