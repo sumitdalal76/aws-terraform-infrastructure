@@ -26,6 +26,17 @@ def list_resources(service, operation, region):
         console.print(f"[bold yellow]Operation {operation} not found for {service}[/bold yellow]")
     return []
 
+def get_available_operations(service):
+    """
+    Retrieve all valid operations for a given AWS service.
+    """
+    session = boto3.Session()
+    try:
+        client = session.client(service)
+        return client.meta.service_model.operation_names
+    except Exception as e:
+        console.print(f"[bold red]Error retrieving operations for {service}: {e}[/bold red]")
+        return []
 
 def scan_resources():
     """
@@ -36,12 +47,14 @@ def scan_resources():
     regions = [region["RegionName"] for region in session.client("ec2").describe_regions()["Regions"]]
     console.print(f"[bold cyan]Scanning resources in regions: {', '.join(regions)}[/bold cyan]")
 
-    # Define services and their operations to query
-    services_operations = {
-        "ec2": ["DescribeVpcs", "DescribeSubnets", "DescribeSecurityGroups"],
-        "s3": ["ListBuckets"],
-        # Add more services and operations as needed
-    }
+    # Define services to query
+    services = ["ec2", "s3"]
+    services_operations = {}
+
+    # Dynamically fetch operations for each service
+    for service in services:
+        operations = get_available_operations(service)
+        services_operations[service] = [op for op in operations if op.startswith("describe_") or op.startswith("list_")]
 
     # Display services being scanned
     console.print("\n[bold cyan]Services and operations being scanned:[/bold cyan]")
@@ -75,7 +88,6 @@ def scan_resources():
     # Print results in table format
     print_resources_table(all_resources)
 
-
 def print_resources_table(resources):
     """
     Print resources in a consolidated table format.
@@ -99,7 +111,6 @@ def print_resources_table(resources):
         )
 
     console.print(table)
-
 
 if __name__ == "__main__":
     scan_resources()
