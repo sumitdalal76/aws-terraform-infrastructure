@@ -7,6 +7,7 @@ import concurrent.futures
 import time
 import random
 from typing import Dict, List
+from prettytable import PrettyTable
 
 init()  # Initialize colorama for cross-platform colored output
 
@@ -443,6 +444,58 @@ def _get_core_services(self) -> Dict[str, List[str]]:
             'GetStages'
         ]
     }
+
+def _save_output(self, resources: Dict[str, List[Dict]], output_file: str = "aws_inventory.json") -> None:
+    """Save the inventory results to a file and print formatted output"""
+    # Save to file
+    with open(output_file, 'w') as f:
+        json.dump(resources, f, indent=2, default=str)
+    
+    # Print summary header
+    print("\n🔍 Starting AWS Resource Scanner")
+    
+    # Print scanned regions
+    print("📍 Scanning Regions:")
+    print(", ".join(self.regions))
+    
+    # Create PrettyTable for resources
+    table = PrettyTable()
+    table.field_names = ["Service", "Type", "Identifier", "Tags"]
+    table.align = "l"  # Left align text
+    table.max_width = 100  # Limit column width
+    
+    # Add rows to table
+    for service, items in resources.items():
+        for item in items:
+            region = f" ({item.get('Region', '')})" if item.get('Region') else ''
+            service_name = f"{service}{region}"
+            
+            # Truncate long tag lists
+            tags = item.get('Tags', [])
+            if len(str(tags)) > 50:
+                tags = str(tags)[:47] + "..."
+            
+            table.add_row([
+                service_name,
+                item.get('Type', ''),
+                item.get('Identifier', ''),
+                tags
+            ])
+    
+    # Print table
+    print("\n📊 Resources (Table Format):")
+    print(table)
+    
+    print(f"\n💾 Full inventory saved to: {output_file}")
+
+def scan(self) -> None:
+    """Main method to scan AWS resources"""
+    try:
+        resources = self._scan_resources()
+        self._save_output(resources, "aws_inventory.json")
+    except Exception as e:
+        print(f"❌ Error scanning resources: {str(e)}")
+        raise
 
 def main():
     try:
