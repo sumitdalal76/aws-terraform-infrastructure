@@ -49,12 +49,15 @@ def scan_service(service_config):
                 command = service_config['command'](region)
                 output = run_aws_command(command)
                 
-                # Process output
-                for line in output.split('\n'):
-                    if line and not line.isspace():
-                        values = line.strip().split('\t')
-                        if len(values) >= len(service_config['columns']):
-                            table.add_row(region, *values)
+                if output:
+                    # Process output
+                    for line in output.split('\n'):
+                        if line and not line.isspace():
+                            values = line.strip().split('\t')
+                            if len(values) >= len(service_config['columns']) - 1:  # -1 for region
+                                table.add_row(region, *values)
+                else:
+                    console.print(f"[bold yellow]No resources found in {region}[/bold yellow]")
         else:
             # For global services
             command = service_config['command']()
