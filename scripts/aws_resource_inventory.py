@@ -52,20 +52,21 @@ def scan_service(service_config):
     try:
         table = Table(
             title=f"AWS {service_config['title']}", 
-            padding=(0, 2), 
-            show_lines=True,
-            box=None  # Remove outer borders for cleaner look
+            show_header=True,
+            header_style="bold",
+            show_edge=False,
+            pad_edge=False,
+            collapse_padding=True
         )
         results = []
         
-        # Add columns from service config with minimum widths
+        # Add columns from service config
         for col in service_config['columns']:
             table.add_column(
                 col, 
-                justify="left", 
+                justify="left",
                 no_wrap=True,
-                min_width=20,  # Minimum width for each column
-                max_width=50   # Maximum width to prevent too wide columns
+                overflow="fold"
             )
         
         if service_config.get('regional', False):
@@ -79,11 +80,8 @@ def scan_service(service_config):
                     for line in output.split('\n'):
                         if line and not line.isspace():
                             has_resources = True
-                            # Clean and format the values
                             values = [item.strip() for item in line.strip().split('\t')]
-                            # Truncate long values if needed
-                            formatted_values = [v[:47] + '...' if len(v) > 50 else v for v in values]
-                            table.add_row(region, *formatted_values)
+                            table.add_row(region, *values)
                             results.append({
                                 'Region': region,
                                 'Output': line.strip()
@@ -99,8 +97,7 @@ def scan_service(service_config):
                 for line in output.split('\n'):
                     if line and not line.isspace():
                         values = [item.strip() for item in line.strip().split()]
-                        formatted_values = [v[:47] + '...' if len(v) > 50 else v for v in values]
-                        table.add_row(*formatted_values)
+                        table.add_row(*values)
                         results.append({
                             'Output': line.strip()
                         })
