@@ -1,7 +1,7 @@
 import subprocess
 from rich.console import Console
 from rich.table import Table
-from services.service_configs import SERVICE_CONFIGS, SERVICES_TO_SCAN
+from service_configs import SERVICE_CONFIGS, SERVICES_TO_SCAN
 
 # Initialize console for better terminal output
 console = Console()
