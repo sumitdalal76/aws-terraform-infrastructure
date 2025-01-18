@@ -287,16 +287,26 @@ class AWSResourceInventory:
                 console.print("\n")
 
         # Regional Resources Summary
-        console.print("[bold blue]Regional Resources[/bold blue]\n")
+        has_regional_resources = any(
+            any(resource_list for resource_list in resources.values() if resource_list)
+            for resources in inventory_data['regions'].values()
+        )
         
-        for region, resources in inventory_data['regions'].items():
-            has_resources = any(resource_list for resource_list in resources.values() if resource_list)
+        if has_regional_resources:
+            console.print("[bold blue]Regional Resources[/bold blue]\n")
             
-            if has_resources:
-                console.print(f"[bold green]Region: {region}[/bold green]")
+            for region, resources in inventory_data['regions'].items():
+                # Skip regions with no resources
+                if not any(resource_list for resource_list in resources.values() if resource_list):
+                    continue
+                    
+                region_printed = False
                 
                 # EC2 Instances
                 if resources['ec2_instances']:
+                    if not region_printed:
+                        console.print(f"[bold green]Region: {region}[/bold green]")
+                        region_printed = True
                     ec2_table = Table(title="EC2 Instances", show_header=True, header_style="bold magenta")
                     ec2_table.add_column("Instance ID")
                     ec2_table.add_column("Type")
@@ -318,6 +328,9 @@ class AWSResourceInventory:
 
                 # DynamoDB Tables
                 if resources['dynamodb_tables']:
+                    if not region_printed:
+                        console.print(f"[bold green]Region: {region}[/bold green]")
+                        region_printed = True
                     dynamo_table = Table(title="DynamoDB Tables", show_header=True, header_style="bold magenta")
                     dynamo_table.add_column("Table Name")
                     dynamo_table.add_column("Status")
@@ -336,7 +349,7 @@ class AWSResourceInventory:
                     console.print(dynamo_table)
                     console.print("\n")
 
-                # Add other resource tables here...
+                # Add other resource tables here with the same pattern...
 
     def print_scan_scope(self):
         """Print the scope of the inventory scan."""
