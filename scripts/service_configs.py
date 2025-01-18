@@ -6,22 +6,13 @@ SERVICE_CONFIGS = {
     's3': {
         'title': 'S3 Buckets',
         'regional': False,
-        'columns': [
-            {'header': 'Creation Date', 'style': 'cyan'},
-            {'header': 'Bucket Name', 'style': 'green'}
-        ],
+        'columns': ['Creation Date', 'Bucket Name'],
         'command': lambda: ["aws", "s3", "ls"]
     },
     'vpc': {
         'title': 'VPCs',
         'regional': True,
-        'columns': [
-            {'header': 'Region', 'style': 'blue'},
-            {'header': 'VPC ID', 'style': 'cyan'},
-            {'header': 'CIDR Block', 'style': 'green'},
-            {'header': 'State', 'style': 'yellow'},
-            {'header': 'DHCP Options', 'style': 'magenta'}
-        ],
+        'columns': ['Region', 'VPC ID', 'CIDR Block', 'State', 'DHCP Options'],
         'command': lambda region: [
             "aws", "ec2", "describe-vpcs",
             "--region", region,
