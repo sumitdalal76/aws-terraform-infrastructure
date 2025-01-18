@@ -33,7 +33,7 @@ def run_aws_list_all():
         result = subprocess.run(
             [
                 "aws-list-all",
-                "list",
+                "query",
                 "--service=s3",
                 "--output-dir", output_dir,
                 "--debug"
@@ -60,7 +60,7 @@ def run_aws_list_all():
         try:
             console.print("[bold yellow]Attempting to list buckets with AWS CLI as fallback...[/bold yellow]")
             aws_s3_ls = subprocess.run(
-                ["aws", "s3", "ls", "--output", "json"],
+                ["aws", "s3", "ls"],
                 check=True,
                 capture_output=True,
                 text=True
