@@ -6,6 +6,7 @@ import json
 import concurrent.futures
 import time
 import random
+from typing import Dict, List
 
 init()  # Initialize colorama for cross-platform colored output
 
@@ -241,6 +242,207 @@ def print_list_format(resources):
                 print(f"  Tags: {json.dumps(resource['details']['Tags'], default=str)}")
             print(f"  Details: {json.dumps(resource['details'], default=str)}")
             print("  ---")
+
+def _get_core_services(self) -> Dict[str, List[str]]:
+    """Get mapping of core AWS services and their important operations"""
+    return {
+        # Networking & VPC Services
+        'ec2': [  # VPC-related operations are part of EC2 API
+            # VPC Resources
+            'DescribeVpcs',
+            'DescribeSubnets',
+            'DescribeRouteTables',
+            'DescribeInternetGateways',
+            'DescribeNatGateways',
+            'DescribeVpcEndpoints',
+            'DescribeVpcPeeringConnections',
+            'DescribeVpnGateways',
+            'DescribeVpnConnections',
+            'DescribeTransitGateways',
+            'DescribeNetworkAcls',
+            # Security
+            'DescribeSecurityGroups',
+            'DescribeNetworkInterfaces',
+            # EC2 Resources
+            'DescribeInstances',
+            'DescribeVolumes',
+            'DescribeKeyPairs',
+            'DescribeSnapshots',
+            'DescribeAddresses',  # Elastic IPs
+            'DescribePlacementGroups'
+        ],
+        
+        # Load Balancing
+        'elbv2': [  # Application and Network Load Balancers
+            'DescribeLoadBalancers',
+            'DescribeTargetGroups',
+            'DescribeListeners',
+            'DescribeRules'
+        ],
+        'elb': [  # Classic Load Balancers
+            'DescribeLoadBalancers'
+        ],
+
+        # Compute Services
+        'lambda': [
+            'ListFunctions',
+            'ListLayers',
+            'ListEventSourceMappings'
+        ],
+        'ecs': [
+            'ListClusters',
+            'ListServices',
+            'ListTaskDefinitions',
+            'ListTasks'
+        ],
+        'eks': [
+            'ListClusters',
+            'ListNodegroups'
+        ],
+        'autoscaling': [
+            'DescribeAutoScalingGroups',
+            'DescribeLaunchConfigurations',
+            'DescribeScalingPolicies'
+        ],
+
+        # Storage Services
+        's3': [
+            'ListBuckets',
+            'GetBucketLocation',
+            'GetBucketVersioning',
+            'GetBucketEncryption'
+        ],
+        'efs': [
+            'DescribeFileSystems',
+            'DescribeMountTargets'
+        ],
+        'ebs': [
+            'ListSnapshotBlocks'
+        ],
+
+        # Database Services
+        'rds': [
+            'DescribeDBInstances',
+            'DescribeDBClusters',
+            'DescribeDBSnapshots',
+            'DescribeDBSubnetGroups',
+            'DescribeOptionGroups'
+        ],
+        'dynamodb': [
+            'ListTables',
+            'DescribeTable',
+            'ListBackups',
+            'DescribeContinuousBackups'
+        ],
+        'elasticache': [
+            'DescribeCacheClusters',
+            'DescribeReplicationGroups',
+            'DescribeCacheSubnetGroups'
+        ],
+
+        # DNS & Content Delivery
+        'route53': [
+            'ListHostedZones',
+            'ListResourceRecordSets',
+            'ListHealthChecks'
+        ],
+        'cloudfront': [
+            'ListDistributions',
+            'ListCachePolicies',
+            'ListOriginRequestPolicies'
+        ],
+
+        # Security Services
+        'iam': [
+            'ListUsers',
+            'ListRoles',
+            'ListGroups',
+            'ListPolicies',
+            'ListServerCertificates',
+            'ListInstanceProfiles'
+        ],
+        'kms': [
+            'ListKeys',
+            'ListAliases'
+        ],
+        'acm': [
+            'ListCertificates'
+        ],
+        'waf': [
+            'ListWebACLs',
+            'ListRules'
+        ],
+        'wafv2': [
+            'ListWebACLs',
+            'ListIPSets',
+            'ListRegexPatternSets'
+        ],
+        'secretsmanager': [
+            'ListSecrets'
+        ],
+
+        # Container Services
+        'ecr': [
+            'DescribeRepositories',
+            'DescribeImages'
+        ],
+
+        # Infrastructure as Code
+        'cloudformation': [
+            'ListStacks',
+            'ListStackSets',
+            'ListChangeSets'
+        ],
+
+        # Source Control & CI/CD
+        'codecommit': [
+            'ListRepositories',
+            'ListBranches'
+        ],
+        'codebuild': [
+            'ListProjects',
+            'ListBuilds'
+        ],
+        'codepipeline': [
+            'ListPipelines'
+        ],
+
+        # Monitoring & Logging
+        'cloudwatch': [
+            'ListMetrics',
+            'DescribeAlarms',
+            'DescribeAlarmHistory'
+        ],
+        'cloudtrail': [
+            'DescribeTrails',
+            'ListTags'
+        ],
+        'logs': [  # CloudWatch Logs
+            'DescribeLogGroups',
+            'DescribeMetricFilters'
+        ],
+
+        # Messaging Services
+        'sns': [
+            'ListTopics',
+            'ListSubscriptions'
+        ],
+        'sqs': [
+            'ListQueues',
+            'GetQueueAttributes'
+        ],
+
+        # API Services
+        'apigateway': [
+            'GetRestApis',
+            'GetStages',
+            'GetDomainNames'
+        ],
+        'apigatewayv2': [  # HTTP/WebSocket APIs
+            'GetApis',
+            'GetStages'
+        ]
+    }
 
 def main():
     try:
