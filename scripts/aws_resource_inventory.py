@@ -83,7 +83,12 @@ class AWSResourceLister:
         """Query a specific AWS resource"""
         try:
             client = self.session.client(service, region_name=region)
-            method = getattr(client, operation)
+            method = getattr(client, operation, None)
+            
+            if not method:
+                if self.verbose:
+                    logger.warning(f"Operation {operation} not found for {service}")
+                return
             
             try:
                 response = method()
@@ -93,21 +98,24 @@ class AWSResourceLister:
                 if resources:
                     status = "+++"
                     self._save_to_file(service, region, operation, response)
+                    if self.verbose:
+                        console.print(f"[green]{status} {service} {region or 'global'} {operation} - Found {len(resources)} resources[/green]")
                 else:
                     status = "---"
-                
-                if self.verbose:
-                    console.print(f"{status} {service} {region or 'global'} {operation}")
+                    if self.verbose:
+                        console.print(f"[yellow]{status} {service} {region or 'global'} {operation} - No resources found[/yellow]")
                 
             except ClientError as e:
                 error_code = e.response['Error']['Code']
                 if error_code == 'AccessDeniedException':
-                    console.print(f">:| {service} {region or 'global'} {operation} - Access Denied")
-                else:
-                    console.print(f"!!! {service} {region or 'global'} {operation} - {str(e)}")
+                    if self.verbose:
+                        console.print(f"[yellow]>:| {service} {region or 'global'} {operation} - Access Denied[/yellow]")
+                elif error_code != 'InvalidAction':  # Skip reporting invalid actions
+                    console.print(f"[red]!!! {service} {region or 'global'} {operation} - {error_code}[/red]")
             
         except Exception as e:
-            console.print(f"!!! {service} {region or 'global'} {operation} - {str(e)}")
+            if not str(e).endswith('has no attribute'):  # Skip attribute errors
+                console.print(f"[red]!!! {service} {region or 'global'} {operation} - {str(e)}[/red]")
 
     def _find_resource_list(self, response: Dict) -> List:
         """Find the list of resources in an AWS API response"""
@@ -143,9 +151,70 @@ class AWSResourceLister:
 
     def _get_service_operations(self, service: str) -> List[str]:
         """Get list of available operations for a service"""
-        client = self.session.client(service)
-        return [op for op in client.meta.service_model.operation_names
-                if op.startswith(('Describe', 'List', 'Get'))]
+        try:
+            client = self.session.client(service)
+            operations = []
+            
+            # Common operation prefixes that typically return resources
+            prefixes = ('Describe', 'List', 'Get')
+            
+            # Skip known problematic operations
+            skip_operations = {
+                'ListTagsForResource',  # Common operation that often fails
+                'GetResourcePolicy',    # Common operation that often fails
+                'DescribeEngineDefaultParameters',
+                'DescribeVpcEndpointConnections',
+                'ListUniqueProblems',
+                'GetDeviceProfile',
+                'ListCasesForContact',
+                'GetServiceSyncBlockerSummary',
+                'GetRecommendationReportDetails'
+            }
+            
+            # Service-specific operation mapping
+            service_operations = {
+                'ec2': [
+                    'DescribeInstances',
+                    'DescribeVolumes',
+                    'DescribeSecurityGroups',
+                    'DescribeVpcs',
+                    'DescribeSubnets',
+                    'DescribeNetworkInterfaces'
+                ],
+                's3': [
+                    'ListBuckets'
+                ],
+                'rds': [
+                    'DescribeDBInstances',
+                    'DescribeDBClusters'
+                ],
+                'lambda': [
+                    'ListFunctions'
+                ],
+                'iam': [
+                    'ListUsers',
+                    'ListRoles',
+                    'ListGroups'
+                ]
+                # Add more service-specific operations as needed
+            }
+            
+            # Use service-specific operations if available
+            if service in service_operations:
+                return service_operations[service]
+            
+            # Otherwise, discover operations dynamically
+            for op in client.meta.service_model.operation_names:
+                if (op.startswith(prefixes) and 
+                    not op.endswith('List') and  # Skip operations that return lists of other operations
+                    op not in skip_operations):
+                    operations.append(op)
+            
+            return operations
+            
+        except Exception as e:
+            logger.warning(f"Error getting operations for {service}: {str(e)}")
+            return []
 
     def _is_regional_service(self, service: str) -> bool:
         """Check if a service is regional or global"""
