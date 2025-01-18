@@ -364,15 +364,6 @@ class AWSResourceInventory:
         """Print the scope of the inventory scan."""
         console.print("\n[bold cyan]=== AWS Resource Inventory Scan Scope ===[/bold cyan]\n")
 
-        # Print Regions
-        regions_table = Table(title="Regions to Scan", show_header=True, header_style="bold magenta")
-        regions_table.add_column("AWS Regions")
-        for region in self.regions:
-            regions_table.add_row(region)
-        console.print(regions_table)
-        console.print("\n")
-
-        # Print Services
         services_table = Table(title="Services to Scan", show_header=True, header_style="bold magenta")
         services_table.add_column("Service Type")
         services_table.add_column("Resources")
@@ -380,27 +371,148 @@ class AWSResourceInventory:
         # Global Services
         services_table.add_row(
             "Global Services",
-            "• S3 Buckets\n• Route53 Hosted Zones"
+            "• IAM (Users, Roles, Groups)\n"
+            "• S3 Buckets\n"
+            "• Route53 Hosted Zones\n"
+            "• CloudFront Distributions\n"
+            "• WAF Rules & ACLs"
         )
 
-        # Regional Services
+        # Security Services
         services_table.add_row(
-            "Regional Services",
-            "• VPCs & Networking\n"
+            "Security Services",
+            "• Security Groups\n"
+            "• Network ACLs\n"
+            "• ACM Certificates\n"
+            "• KMS Keys\n"
+            "• Secrets Manager Secrets\n"
+            "• IAM Roles & Policies"
+        )
+
+        # Compute & Containers
+        services_table.add_row(
+            "Compute & Containers",
             "• EC2 Instances\n"
-            "• RDS Instances\n"
+            "• Auto Scaling Groups\n"
+            "• Launch Templates\n"
+            "• ECS Clusters & Services\n"
+            "• EKS Clusters\n"
             "• Lambda Functions\n"
+            "• ECR Repositories"
+        )
+
+        # Storage & Database
+        services_table.add_row(
+            "Storage & Database",
+            "• EBS Volumes\n"
+            "• EFS File Systems\n"
+            "• RDS Instances & Clusters\n"
             "• DynamoDB Tables\n"
-            "• Load Balancers (ALB/NLB/Classic)\n"
-            "• ECS Clusters"
+            "• ElastiCache Clusters\n"
+            "• S3 Bucket Policies"
+        )
+
+        # Networking
+        services_table.add_row(
+            "Networking",
+            "• VPCs & Subnets\n"
+            "• Internet Gateways\n"
+            "• NAT Gateways\n"
+            "• Transit Gateways\n"
+            "• VPC Endpoints\n"
+            "• Route Tables\n"
+            "• Network Interfaces\n"
+            "• Elastic IPs"
+        )
+
+        # Load Balancing & DNS
+        services_table.add_row(
+            "Load Balancing & DNS",
+            "• Application Load Balancers\n"
+            "• Network Load Balancers\n"
+            "• Classic Load Balancers\n"
+            "• Target Groups\n"
+            "• Route53 Records"
+        )
+
+        # Application Services
+        services_table.add_row(
+            "Application Services",
+            "• API Gateway APIs\n"
+            "• SNS Topics\n"
+            "• SQS Queues\n"
+            "• EventBridge Rules\n"
+            "• Step Functions"
+        )
+
+        # Developer Tools
+        services_table.add_row(
+            "Developer Tools",
+            "• CodeBuild Projects\n"
+            "• CodePipeline Pipelines\n"
+            "• CodeDeploy Applications\n"
+            "• CloudWatch Logs Groups\n"
+            "• CloudWatch Alarms"
         )
 
         console.print(services_table)
         console.print("\n")
 
+    def get_security_groups(self, region: str) -> List[Dict]:
+        """Get information about Security Groups in a region."""
+        ec2 = self.session.client('ec2', region_name=region)
+        try:
+            sgs = ec2.describe_security_groups()
+            return [{
+                'GroupId': sg['GroupId'],
+                'GroupName': sg['GroupName'],
+                'Description': sg['Description'],
+                'VpcId': sg.get('VpcId', 'N/A'),
+                'InboundRules': sg['IpPermissions'],
+                'OutboundRules': sg['IpPermissionsEgress']
+            } for sg in sgs['SecurityGroups']]
+        except ClientError as e:
+            logger.error(f"Error getting Security Groups in {region}: {e}")
+            return []
+
+    def get_acm_certificates(self, region: str) -> List[Dict]:
+        """Get information about ACM certificates in a region."""
+        acm = self.session.client('acm', region_name=region)
+        try:
+            certs = acm.list_certificates()
+            return [{
+                'CertificateArn': cert['CertificateArn'],
+                'DomainName': cert['DomainName'],
+                'Status': cert['Status']
+            } for cert in certs['CertificateSummaryList']]
+        except ClientError as e:
+            logger.error(f"Error getting ACM certificates in {region}: {e}")
+            return []
+
+    def get_kms_keys(self, region: str) -> List[Dict]:
+        """Get information about KMS keys in a region."""
+        kms = self.session.client('kms', region_name=region)
+        try:
+            keys = kms.list_keys()
+            key_info = []
+            for key in keys['Keys']:
+                try:
+                    desc = kms.describe_key(KeyId=key['KeyId'])['KeyMetadata']
+                    key_info.append({
+                        'KeyId': desc['KeyId'],
+                        'Arn': desc['Arn'],
+                        'State': desc['KeyState'],
+                        'Description': desc.get('Description', 'N/A')
+                    })
+                except ClientError:
+                    continue
+            return key_info
+        except ClientError as e:
+            logger.error(f"Error getting KMS keys in {region}: {e}")
+            return []
+
     def generate_inventory(self) -> Dict:
         """Generate complete inventory of AWS resources."""
-        # Print scan scope at the start
         self.print_scan_scope()
         
         timestamp = datetime.now().isoformat()
@@ -411,11 +523,9 @@ class AWSResourceInventory:
             'route53_zones': self.get_route53_info()
         }
         
-        # Get region-specific resources
         for region in self.regions:
             console.print(f"Scanning region: {region}")
             
-            # Collect all regional resources
             self.inventory_data['regions'][region] = {
                 'vpcs': [vpc for vpc in self.get_vpcs(region) if not vpc['IsDefault']],
                 'ec2_instances': self.get_ec2_instances(region),
@@ -423,15 +533,17 @@ class AWSResourceInventory:
                 'lambda_functions': self.get_lambda_functions(region),
                 'dynamodb_tables': self.get_dynamodb_tables(region),
                 'load_balancers': self.get_elb_info(region),
-                'ecs_clusters': self.get_ecs_info(region)
+                'ecs_clusters': self.get_ecs_info(region),
+                'security_groups': self.get_security_groups(region),
+                'acm_certificates': self.get_acm_certificates(region),
+                'kms_keys': self.get_kms_keys(region)
+                # Add more services here
             }
 
-        # Print consolidated view in tables
         self.print_consolidated_table(self.inventory_data)
-        
         return self.inventory_data
 
-    def save_inventory(self, inventory: Dict, filename: str = 'artifact.json'):
+    def save_inventory(self, inventory: Dict, filename: str = 'aws_inventory.json'):
         """Save inventory to a JSON file."""
         with open(filename, 'w') as f:
             json.dump(inventory, f, indent=2)
