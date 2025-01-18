@@ -49,8 +49,6 @@ def scan_service(service_config):
     Generic function to scan AWS services
     """
     try:
-        console.print("\n" + "=" * 80)
-        console.print(f"Scanning {service_config['title']}...")
         
         results = []
         
@@ -110,6 +108,7 @@ def scan_aws_resources():
     
     for service in AWS_COMMANDS.keys():
         config = get_service_config(service)
+        console.print("\n" + "=" * 80)
         console.print(f"\nScanning {config['title']}...")
         results = scan_service(config)
         all_results[service] = results
