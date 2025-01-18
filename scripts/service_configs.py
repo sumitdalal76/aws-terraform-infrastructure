@@ -16,6 +16,11 @@ AWS_COMMANDS = {
         'regional': True,
         'columns': ['Region', 'Instance ID', 'Type', 'State']
     },
+    'dynamodb': {
+        'command': lambda region: ["aws", "dynamodb", "list-tables", "--region", region, "--query", "TableNames[]", "--output", "text"],
+        'regional': True,
+        'columns': ['Region', 'Table Name']
+    },
     'rds': {
         'command': lambda region: ["aws", "rds", "describe-db-instances", "--region", region, "--output", "text"],
         'regional': True,
