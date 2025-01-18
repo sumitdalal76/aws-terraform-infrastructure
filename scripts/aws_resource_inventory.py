@@ -4,7 +4,6 @@ from rich.console import Console
 from rich.table import Table
 from service_configs import AWS_COMMANDS
 
-# Initialize console for output
 console = Console()
 
 def get_service_config(service_name):
@@ -16,7 +15,7 @@ def get_service_config(service_name):
     
     return {
         'title': f'{service_name.upper()}',
-        **AWS_COMMANDS[service_name]  # Unpacks command and regional settings
+        **AWS_COMMANDS[service_name]
     }
 
 def run_aws_command(command_list):
@@ -53,50 +52,45 @@ def scan_service(service_config):
         console.print(f"\n# AWS {service_config['title']}")
         results = []
         
-        column_widths = [len(col) for col in service_config['columns']]
-        
-        header = "| " + " | ".join(f" {col} " for col in service_config['columns']) + " |"
-        separator = "|" + "|".join(["-" * (width + 2) for width in column_widths]) + "|"
-        
-        console.print(header)
-        console.print(separator)
-        
+        all_rows = []
         if service_config.get('regional', False):
-            regions = get_regions()
-            has_resources = False
-            for region in regions:
+            for region in get_regions():
                 command = service_config['command'](region)
                 output = run_aws_command(command)
-                
                 if output:
                     for line in output.split('\n'):
                         if line and not line.isspace():
-                            has_resources = True
-                            values = [item.strip() for item in line.strip().split('\t')]
-                            row = f"| {region} | " + " | ".join(f" {v} " for v in values) + " |"
-                            console.print(row)
-                            results.append({
-                                'Region': region,
-                                'Output': line.strip()
-                            })
-            
-            if not has_resources:
-                console.print(f"| No resources found {' |' * (len(service_config['columns']) - 1)}")
+                            values = [region] + [item.strip() for item in line.strip().split('\t')]
+                            all_rows.append(values)
         else:
             command = service_config['command']()
             output = run_aws_command(command)
-            
             if output:
                 for line in output.split('\n'):
                     if line and not line.isspace():
                         values = [item.strip() for item in line.strip().split()]
-                        row = "| " + " | ".join(f" {v} " for v in values) + " |"
-                        console.print(row)
-                        results.append({
-                            'Output': line.strip()
-                        })
-            else:
-                console.print(f"| No resources found {' |' * (len(service_config['columns']) - 1)}")
+                        all_rows.append(values)
+
+        column_widths = [len(col) for col in service_config['columns']]
+        for row in all_rows:
+            for i, value in enumerate(row):
+                if i < len(column_widths):
+                    column_widths[i] = max(column_widths[i], len(str(value)))
+
+        header = "| " + " | ".join(f" {col:{width}} " for col, width in zip(service_config['columns'], column_widths)) + " |"
+        separator = "|-" + "-|-".join("-" * width for width in column_widths) + "-|"
+        
+        console.print(header)
+        console.print(separator)
+        
+        if all_rows:
+            for values in all_rows:
+                row = "| " + " | ".join(f" {str(v):{width}} " for v, width in zip(values, column_widths)) + " |"
+                console.print(row)
+                results.append({'Output': "\t".join(str(v) for v in values)})
+        else:
+            no_resources = "| No resources found " + " |" * (len(service_config['columns']) - 1)
+            console.print(no_resources)
         
         return results
 
