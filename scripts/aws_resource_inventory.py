@@ -45,18 +45,17 @@ def get_regions():
         "--output", "text"
     ]).split()
 
-def scan_service(service_name):
+def scan_service(service_config):
     """
     Generic function to scan AWS services
     """
     try:
-        service_config = get_service_config(service_name)
-        table = Table(title=f"AWS {service_config['title']}")
+        table = Table(title=f"AWS {service_config['title']}", padding=(0, 2), show_lines=True)
         results = []
         
         # Add columns from service config
         for col in service_config['columns']:
-            table.add_column(col)
+            table.add_column(col, justify="left", no_wrap=True)
         
         if service_config.get('regional', False):
             # For regional services, scan each region
@@ -71,7 +70,7 @@ def scan_service(service_name):
                     for line in output.split('\n'):
                         if line and not line.isspace():
                             has_resources = True
-                            table.add_row(region, *line.strip().split('\t'))
+                            table.add_row(region, *[item.strip() for item in line.strip().split('\t')])
                             results.append({
                                 'Region': region,
                                 'Output': line.strip()
@@ -88,7 +87,7 @@ def scan_service(service_name):
             if output:
                 for line in output.split('\n'):
                     if line and not line.isspace():
-                        table.add_row(*line.strip().split())
+                        table.add_row(*[item.strip() for item in line.strip().split()])
                         results.append({
                             'Output': line.strip()
                         })
@@ -108,9 +107,9 @@ def scan_aws_resources():
     """
     all_results = {}
     
-    for service in AWS_COMMANDS.keys():
-        console.print(f"\nScanning {service.upper()}...")
-        results = scan_service(service)
+    for service, config in SERVICE_CONFIGS.items():
+        console.print(f"\nScanning {config['title']}...")
+        results = scan_service(config)
         all_results[service] = results
     
     # Save results to file

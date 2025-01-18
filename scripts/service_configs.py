@@ -20,7 +20,7 @@ AWS_COMMANDS = {
         'columns': ['Region', 'Subnet ID', 'Name', 'VPC ID', 'CIDR Block', 'AZ', 'Auto-assign Public IP']
     },
     'security-group': {
-        'command': lambda region: ["aws", "ec2", "describe-security-groups", "--region", region, "--filters", "Name=group-name,Values=!default", "--query", "SecurityGroups[].[GroupId,GroupName,VpcId,Description]", "--output", "text"],
+        'command': lambda region: ["aws", "ec2", "describe-security-groups", "--region", region, "--filters", "Name=vpc-id,Values=*", "--query", "SecurityGroups[?GroupName != 'default'].[GroupId,GroupName,VpcId,Description]", "--output", "text"],
         'regional': True,
         'columns': ['Region', 'Security Group ID', 'Name', 'VPC ID', 'Description']
     },
