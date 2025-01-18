@@ -1,5 +1,5 @@
 # Just list the services you want to scan
-SERVICES_TO_SCAN = ['s3', 'vpc']
+SERVICES_TO_SCAN = ['s3', 'ec2']
 
 # Basic configuration that works for any service
 def get_service_config(service_name):
