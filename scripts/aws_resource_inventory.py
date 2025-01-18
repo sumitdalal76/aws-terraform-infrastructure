@@ -8,21 +8,29 @@ from rich.table import Table
 # Initialize console for output
 console = Console()
 
-def run_aws_list_all():
+def run_aws_list_all(services_operations):
     """
-    Run the aws-list-all command to query all resources across services and regions.
+    Run the aws-list-all command for specific services and operations.
     """
     output_dir = "aws_list_all_output"
     os.makedirs(output_dir, exist_ok=True)
 
     try:
-        console.print("[bold cyan]Running aws-list-all to scan all AWS resources...[/bold cyan]")
+        console.print("[bold cyan]Running aws-list-all for specific services and operations...[/bold cyan]")
 
-        # Run aws-list-all with default options
-        subprocess.run(
-            ["aws-list-all", "query", "--directory", output_dir, "--verbose"],
-            check=True
-        )
+        for service, operations in services_operations.items():
+            for operation in operations:
+                console.print(f"[bold blue]Scanning {service}: {operation}[/bold blue]")
+                subprocess.run(
+                    [
+                        "aws-list-all", "query",
+                        "--service", service,
+                        "--operation", operation,
+                        "--directory", output_dir,
+                        "--verbose"
+                    ],
+                    check=True
+                )
 
         console.print(f"[bold green]Resource data saved to directory: {output_dir}[/bold green]")
         return output_dir
@@ -89,6 +97,13 @@ def save_to_json(data, filename):
     console.print(f"[bold green]Resources summary saved to {filename}[/bold green]")
 
 if __name__ == "__main__":
-    output_dir = run_aws_list_all()
+    # Define specific services and operations to scan
+    services_operations = {
+        "ec2": ["DescribeVpcs", "DescribeSubnets", "DescribeSecurityGroups"],
+        "s3": ["ListBuckets"],
+        "dynamodb": ["ListTables"]
+    }
+
+    output_dir = run_aws_list_all(services_operations)
     if output_dir:
         parse_and_display(output_dir)
