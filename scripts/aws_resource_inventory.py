@@ -105,31 +105,106 @@ class AWSResourceInventory:
         console.print("\n[bold cyan]=== AWS Resource Summary ===[/bold cyan]\n")
 
         # Global Resources Summary
-        if inventory_data['s3_buckets'] or inventory_data['route53_zones']:
-            console.print("[bold blue]Global Resources[/bold blue]")
+        console.print("[bold blue]Global Resources[/bold blue]")
+        
+        # IAM Resources
+        if inventory_data.get('iam'):
+            iam_data = inventory_data['iam']
             
-            # S3 Buckets
-            if inventory_data['s3_buckets']:
-                s3_table = Table(title="S3 Buckets", show_header=True, header_style="bold magenta")
-                s3_table.add_column("Bucket Name")
-                s3_table.add_column("Creation Date")
-                for bucket in inventory_data['s3_buckets']:
-                    s3_table.add_row(bucket['Name'], bucket['CreationDate'])
-                console.print(s3_table)
+            # IAM Users
+            if iam_data.get('users'):
+                users_table = Table(title="IAM Users", show_header=True, header_style="bold magenta")
+                users_table.add_column("Username")
+                users_table.add_column("User ID")
+                users_table.add_column("ARN")
+                users_table.add_column("Create Date")
+                
+                for user in iam_data['users']:
+                    users_table.add_row(
+                        user['UserName'],
+                        user['UserId'],
+                        user['Arn'],
+                        user['CreateDate']
+                    )
+                console.print(users_table)
+                console.print("\n")
+            
+            # IAM Roles
+            if iam_data.get('roles'):
+                roles_table = Table(title="IAM Roles", show_header=True, header_style="bold magenta")
+                roles_table.add_column("Role Name")
+                roles_table.add_column("Role ID")
+                roles_table.add_column("ARN")
+                roles_table.add_column("Description")
+                roles_table.add_column("Create Date")
+                
+                for role in iam_data['roles']:
+                    roles_table.add_row(
+                        role['RoleName'],
+                        role['RoleId'],
+                        role['Arn'],
+                        role['Description'],
+                        role['CreateDate']
+                    )
+                console.print(roles_table)
                 console.print("\n")
 
-            # Route53 Zones
-            if inventory_data['route53_zones']:
-                route53_table = Table(title="Route53 Hosted Zones", show_header=True, header_style="bold magenta")
-                route53_table.add_column("Zone Name")
-                route53_table.add_column("Zone ID")
-                route53_table.add_column("Record Count")
-                route53_table.add_column("Type")
-                for zone in inventory_data['route53_zones']:
-                    zone_type = "Private" if zone['Private'] else "Public"
-                    route53_table.add_row(zone['Name'], zone['Id'], str(zone['RecordCount']), zone_type)
-                console.print(route53_table)
-                console.print("\n")
+        # CloudFront Distributions
+        if inventory_data.get('cloudfront'):
+            cloudfront_table = Table(title="CloudFront Distributions", show_header=True, header_style="bold magenta")
+            cloudfront_table.add_column("Distribution ID")
+            cloudfront_table.add_column("Domain Name")
+            cloudfront_table.add_column("Status")
+            cloudfront_table.add_column("Enabled")
+            
+            for dist in inventory_data['cloudfront']:
+                cloudfront_table.add_row(
+                    dist['Id'],
+                    dist['DomainName'],
+                    dist['Status'],
+                    str(dist['Enabled'])
+                )
+            console.print(cloudfront_table)
+            console.print("\n")
+
+        # WAF Rules & ACLs
+        if inventory_data.get('waf', {}).get('WebACLs'):
+            waf_table = Table(title="WAF Web ACLs", show_header=True, header_style="bold magenta")
+            waf_table.add_column("Name")
+            waf_table.add_column("ID")
+            waf_table.add_column("Scope")
+            
+            for acl in inventory_data['waf']['WebACLs']:
+                waf_table.add_row(
+                    acl['Name'],
+                    acl['Id'],
+                    acl['Scope']
+                )
+            console.print(waf_table)
+            console.print("\n")
+
+        # S3 Buckets
+        if inventory_data['s3_buckets']:
+            s3_table = Table(title="S3 Buckets", show_header=True, header_style="bold magenta")
+            s3_table.add_column("Bucket Name")
+            s3_table.add_column("Creation Date")
+            for bucket in inventory_data['s3_buckets']:
+                s3_table.add_row(bucket['Name'], bucket['CreationDate'])
+            console.print(s3_table)
+            console.print("\n")
+
+        # Route53 Zones
+        if inventory_data['route53_zones']:
+            route53_table = Table(title="Route53 Hosted Zones", show_header=True, header_style="bold magenta")
+            route53_table.add_column("Zone Name")
+            route53_table.add_column("Zone ID")
+            route53_table.add_column("Record Count")
+            route53_table.add_column("Type")
+            for zone in inventory_data['route53_zones']:
+                zone_type = "Private" if zone['Private'] else "Public"
+                route53_table.add_row(zone['Name'], zone['Id'], str(zone['RecordCount']), zone_type)
+            console.print(route53_table)
+            console.print("\n")
 
         # Regional Resources Summary
         has_regional_resources = any(
@@ -199,27 +274,45 @@ class AWSResourceInventory:
         self.print_scan_scope()
         
         timestamp = datetime.now().isoformat()
+        
+        # Global Services
         self.inventory_data = {
             'timestamp': timestamp,
             'regions': {},
             's3_buckets': make_api_call(self.global_services.get_s3_buckets),
-            'route53_zones': make_api_call(self.global_services.get_route53_info)
+            'route53_zones': make_api_call(self.global_services.get_route53_info),
+            'iam': make_api_call(self.global_services.get_iam_info),
+            'cloudfront': make_api_call(self.global_services.get_cloudfront_distributions),
+            'waf': make_api_call(self.global_services.get_waf_info)
         }
         
         for region in self.regions:
             console.print(f"Scanning region: {region}", style="dim")
             
             regional_data = {
-                'vpcs': make_api_call(self.network.get_vpcs, region),
+                # Compute & Containers
                 'ec2_instances': make_api_call(self.compute.get_ec2_instances, region),
-                'rds_instances': make_api_call(self.database.get_rds_instances, region),
+                'auto_scaling_groups': make_api_call(self.compute.get_auto_scaling_groups, region),
+                'launch_templates': make_api_call(self.compute.get_launch_templates, region),
                 'lambda_functions': make_api_call(self.compute.get_lambda_functions, region),
-                'dynamodb_tables': make_api_call(self.database.get_dynamodb_tables, region),
-                'load_balancers': make_api_call(self.network.get_elb_info, region),
                 'ecs_clusters': make_api_call(self.compute.get_ecs_info, region),
+                'eks_clusters': make_api_call(self.compute.get_eks_clusters, region),
+                'ecr_repositories': make_api_call(self.compute.get_ecr_repositories, region),
+                
+                # Security
                 'security_groups': make_api_call(self.security.get_security_groups, region),
+                'network_acls': make_api_call(self.security.get_network_acls, region),
                 'acm_certificates': make_api_call(self.security.get_acm_certificates, region),
-                'kms_keys': make_api_call(self.security.get_kms_keys, region)
+                'kms_keys': make_api_call(self.security.get_kms_keys, region),
+                'secrets': make_api_call(self.security.get_secrets, region),
+                
+                # Database
+                'rds_instances': make_api_call(self.database.get_rds_instances, region),
+                'dynamodb_tables': make_api_call(self.database.get_dynamodb_tables, region),
+                
+                # Network
+                'vpcs': make_api_call(self.network.get_vpcs, region),
+                'load_balancers': make_api_call(self.network.get_elb_info, region)
             }
             
             self.inventory_data['regions'][region] = {

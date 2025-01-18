@@ -60,4 +60,36 @@ class SecurityServices:
             return key_info
         except ClientError as e:
             logger.error(f"Error getting KMS keys in {region}: {e}")
+            return []
+
+    def get_network_acls(self, region: str) -> List[Dict]:
+        """Get information about Network ACLs in a region."""
+        ec2 = self.session.client('ec2', region_name=region, config=boto3_config)
+        try:
+            acls = ec2.describe_network_acls()
+            return [{
+                'NetworkAclId': acl['NetworkAclId'],
+                'VpcId': acl['VpcId'],
+                'IsDefault': acl['IsDefault'],
+                'Entries': acl['Entries'],
+                'Associations': acl['Associations']
+            } for acl in acls['NetworkAcls']]
+        except ClientError as e:
+            logger.error(f"Error getting Network ACLs in {region}: {e}")
+            return []
+
+    def get_secrets(self, region: str) -> List[Dict]:
+        """Get information about Secrets Manager secrets in a region."""
+        secrets = self.session.client('secretsmanager', region_name=region, config=boto3_config)
+        try:
+            secret_list = secrets.list_secrets()
+            return [{
+                'Name': secret['Name'],
+                'ARN': secret['ARN'],
+                'LastChangedDate': secret.get('LastChangedDate', 'N/A'),
+                'LastAccessedDate': secret.get('LastAccessedDate', 'N/A'),
+                'Tags': secret.get('Tags', [])
+            } for secret in secret_list['SecretList']]
+        except ClientError as e:
+            logger.error(f"Error getting Secrets Manager secrets in {region}: {e}")
             return [] 

@@ -83,4 +83,75 @@ class ComputeServices:
             return cluster_info
         except ClientError as e:
             logger.error(f"Error getting ECS information in {region}: {e}")
+            return []
+
+    def get_auto_scaling_groups(self, region: str) -> List[Dict]:
+        """Get information about Auto Scaling groups in a region."""
+        asg = self.session.client('autoscaling', region_name=region, config=boto3_config)
+        try:
+            groups = asg.describe_auto_scaling_groups()
+            return [{
+                'AutoScalingGroupName': group['AutoScalingGroupName'],
+                'DesiredCapacity': group['DesiredCapacity'],
+                'MinSize': group['MinSize'],
+                'MaxSize': group['MaxSize'],
+                'InstanceCount': len(group['Instances']),
+                'LaunchTemplate': group.get('LaunchTemplate', 'N/A')
+            } for group in groups['AutoScalingGroups']]
+        except ClientError as e:
+            logger.error(f"Error getting Auto Scaling groups in {region}: {e}")
+            return []
+
+    def get_launch_templates(self, region: str) -> List[Dict]:
+        """Get information about Launch Templates in a region."""
+        ec2 = self.session.client('ec2', region_name=region, config=boto3_config)
+        try:
+            templates = ec2.describe_launch_templates()
+            return [{
+                'LaunchTemplateName': template['LaunchTemplateName'],
+                'LaunchTemplateId': template['LaunchTemplateId'],
+                'DefaultVersion': template['DefaultVersionNumber'],
+                'LatestVersion': template['LatestVersionNumber'],
+                'CreateTime': template['CreateTime'].isoformat()
+            } for template in templates['LaunchTemplates']]
+        except ClientError as e:
+            logger.error(f"Error getting Launch Templates in {region}: {e}")
+            return []
+
+    def get_eks_clusters(self, region: str) -> List[Dict]:
+        """Get information about EKS clusters in a region."""
+        eks = self.session.client('eks', region_name=region, config=boto3_config)
+        try:
+            clusters = eks.list_clusters()
+            cluster_info = []
+            for cluster_name in clusters['clusters']:
+                try:
+                    cluster = eks.describe_cluster(name=cluster_name)['cluster']
+                    cluster_info.append({
+                        'Name': cluster['name'],
+                        'Status': cluster['status'],
+                        'Version': cluster['version'],
+                        'Endpoint': cluster['endpoint'],
+                        'PlatformVersion': cluster['platformVersion']
+                    })
+                except ClientError:
+                    continue
+            return cluster_info
+        except ClientError as e:
+            logger.error(f"Error getting EKS clusters in {region}: {e}")
+            return []
+
+    def get_ecr_repositories(self, region: str) -> List[Dict]:
+        """Get information about ECR repositories in a region."""
+        ecr = self.session.client('ecr', region_name=region, config=boto3_config)
+        try:
+            repos = ecr.describe_repositories()
+            return [{
+                'RepositoryName': repo['repositoryName'],
+                'RepositoryUri': repo['repositoryUri'],
+                'CreatedAt': repo['createdAt'].isoformat(),
+                'ImageCount': repo.get('imageCount', 0)
+            } for repo in repos['repositories']]
+        except ClientError as e:
+            logger.error(f"Error getting ECR repositories in {region}: {e}")
             return [] 
