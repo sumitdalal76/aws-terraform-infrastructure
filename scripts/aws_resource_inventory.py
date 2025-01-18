@@ -53,9 +53,10 @@ def scan_service(service_config):
         console.print(f"\n# AWS {service_config['title']}")
         results = []
         
-        # Print header with better spacing
+        column_widths = [len(col) for col in service_config['columns']]
+        
         header = "| " + " | ".join(f" {col} " for col in service_config['columns']) + " |"
-        separator = "|" + "|".join(["----" for _ in service_config['columns']]) + "|"
+        separator = "|" + "|".join(["-" * (width + 2) for width in column_widths]) + "|"
         
         console.print(header)
         console.print(separator)
