@@ -15,17 +15,17 @@ AWS_COMMANDS = {
         'columns': ['Region', 'VPC ID', 'Name', 'CIDR Block', 'State', 'IsDefault', 'Owner ID']
     },
     'subnet': {
-        'command': lambda region: ["aws", "ec2", "describe-subnets", "--region", region, "--query", "Subnets[].[SubnetId,Tags[?Key=='Name'].Value|[0],VpcId,CidrBlock,AvailabilityZone,MapPublicIpOnLaunch]", "--output", "text"],
+        'command': lambda region: ["aws", "ec2", "describe-subnets", "--region", region, "--filters", "Name=default-for-az,Values=false", "--query", "Subnets[].[SubnetId,Tags[?Key=='Name'].Value|[0],VpcId,CidrBlock,AvailabilityZone,MapPublicIpOnLaunch]", "--output", "text"],
         'regional': True,
         'columns': ['Region', 'Subnet ID', 'Name', 'VPC ID', 'CIDR Block', 'AZ', 'Auto-assign Public IP']
     },
     'security-group': {
-        'command': lambda region: ["aws", "ec2", "describe-security-groups", "--region", region, "--query", "SecurityGroups[].[GroupId,GroupName,VpcId,Description]", "--output", "text"],
+        'command': lambda region: ["aws", "ec2", "describe-security-groups", "--region", region, "--filters", "Name=group-name,Values=!default", "--query", "SecurityGroups[].[GroupId,GroupName,VpcId,Description]", "--output", "text"],
         'regional': True,
         'columns': ['Region', 'Security Group ID', 'Name', 'VPC ID', 'Description']
     },
     'route-table': {
-        'command': lambda region: ["aws", "ec2", "describe-route-tables", "--region", region, "--query", "RouteTables[].[RouteTableId,Tags[?Key=='Name'].Value|[0],VpcId]", "--output", "text"],
+        'command': lambda region: ["aws", "ec2", "describe-route-tables", "--region", region, "--filters", "Name=association.main,Values=false", "--query", "RouteTables[].[RouteTableId,Tags[?Key=='Name'].Value|[0],VpcId]", "--output", "text"],
         'regional': True,
         'columns': ['Region', 'Route Table ID', 'Name', 'VPC ID']
     },
