@@ -107,7 +107,8 @@ def scan_aws_resources():
     """
     all_results = {}
     
-    for service, config in SERVICE_CONFIGS.items():
+    for service in AWS_COMMANDS.keys():
+        config = get_service_config(service)
         console.print(f"\nScanning {config['title']}...")
         results = scan_service(config)
         all_results[service] = results
